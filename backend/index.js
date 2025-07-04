@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -15,22 +16,21 @@ app.use(express.json());
 
 app.use(
   cors({
-    origin: 'http://localhost:5173', // your React frontend
+    origin: 'http://localhost:5173',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
-// ✅ Handle preflight requests manually
+//  Handle preflight requests manually
 app.options('*', cors());
 
-// ✅ Health check route
 app.get('/', (req, res) => {
   res.send('Backend is running ✅');
 });
 
-// ✅ Register route
+//  signup route
 app.post('/register', async (req, res) => {
   const { username, password } = req.body;
 
@@ -54,6 +54,33 @@ app.post('/register', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+// Login route
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password)
+    return res
+      .status(400)
+      .json({ message: 'Username and password are required.' });
+
+  try {
+    const user = await User.findOne({ username });
+    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch)
+      return res.status(401).json({ message: 'Invalid credentials' });
+
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: '1d',
+    });
+
+    res.status(200).json({ token, message: 'Login successful' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

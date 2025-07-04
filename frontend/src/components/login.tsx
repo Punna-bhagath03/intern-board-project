@@ -2,42 +2,37 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-export default function Signup() {
+export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     try {
-      const res = await axios.post(
-        'http://localhost:5001/register',
-        { username, password },
-        { withCredentials: true }
-      );
-
-      if (res.status === 201) {
-        navigate('/'); // Redirect to main page
+      const res = await axios.post('http://localhost:5001/login', {
+        username,
+        password,
+      });
+      if (res.status === 200) {
+        localStorage.setItem('token', res.data.token);
+        navigate('/');
       }
     } catch (err: any) {
-      if (err.response && err.response.data?.message) {
-        setError(err.response.data.message);
-      } else {
-        setError('Registration failed. Please try again.');
-      }
+      setError(err.response?.data?.message || 'Login failed');
     }
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen">
       <form
-        onSubmit={handleSubmit}
+        onSubmit={handleLogin}
         className="bg-white p-8 rounded shadow-md w-80"
       >
-        <h2 className="text-2xl font-bold mb-4">Sign Up</h2>
+        <h2 className="text-2xl font-bold mb-4">Login</h2>
         {error && <div className="text-red-500 mb-2">{error}</div>}
         <input
           type="text"
@@ -57,20 +52,11 @@ export default function Signup() {
         />
         <button
           type="submit"
-          className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+          className="w-full bg-green-500 text-white p-2 rounded hover:bg-green-600"
         >
-          Register
+          Login
         </button>
       </form>
-      <p className="text-sm mt-4">
-        Already have an account?{' '}
-        <button
-          onClick={() => navigate('/login')}
-          className="text-blue-500 underline hover:text-blue-700"
-        >
-          Sign In
-        </button>
-      </p>
     </div>
   );
 }
