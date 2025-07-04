@@ -19,6 +19,7 @@ export default function Login() {
       });
       if (res.status === 200) {
         localStorage.setItem('token', res.data.token);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
         navigate('/');
       }
     } catch (err: any) {

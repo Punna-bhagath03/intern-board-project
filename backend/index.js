@@ -4,14 +4,15 @@ const cors = require('cors');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
+const boardRoutes = require('./routes/boardRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// 👇 Your Mongoose User model
 const User = require('./models/User.js');
+const Board = require('./models/Board.js');
 
-// ✅ Middleware
+//  Middleware
 app.use(express.json());
 
 app.use(
@@ -50,6 +51,14 @@ app.post('/register', async (req, res) => {
     const user = new User({ username, password: hashedPassword });
     await user.save();
 
+    // Create a default board for the new user
+    const defaultBoard = new Board({
+      user: user._id,
+      name: 'My First Board',
+      content: {}
+    });
+    await defaultBoard.save();
+
     res.status(201).json({ message: 'User registered successfully.' });
   } catch (err) {
     console.error(err);
@@ -83,6 +92,8 @@ app.post('/login', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+app.use('/api', boardRoutes);
 
 //mongo connection
 mongoose

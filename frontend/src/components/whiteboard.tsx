@@ -1,5 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Rnd } from 'react-rnd';
+import axios from 'axios';
+import debounce from 'lodash/debounce';
+import { useNavigate } from 'react-router-dom';
 
 interface ImageItem {
   id: number;
@@ -11,18 +14,134 @@ interface ImageItem {
   shape?: 'rectangle' | 'circle';
 }
 
+interface Board {
+  _id: string;
+  name: string;
+  content: any;
+}
+
+const API_URL = 'http://localhost:5001/api';
+
 const Whiteboard: React.FC = () => {
-  const [boardSize, setBoardSize] = useState<{ width: string; height: string }>(
-    {
-      width: '600',
-      height: '400',
-    }
-  );
+  // Board management state
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [selectedBoard, setSelectedBoard] = useState<Board | null>(null);
+  const [newBoardName, setNewBoardName] = useState('');
+  const [loadingBoards, setLoadingBoards] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Whiteboard state
+  const [boardSize, setBoardSize] = useState<{ width: string; height: string }>({
+    width: '600',
+    height: '400',
+  });
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [images, setImages] = useState<ImageItem[]>([]);
   const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
   const addImagesInputRef = useRef<HTMLInputElement | null>(null);
   const backgroundInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Get JWT token from localStorage
+  const token = localStorage.getItem('token');
+
+  const navigate = useNavigate();
+
+  // Fetch boards after login
+  useEffect(() => {
+    if (!token) return;
+    setLoadingBoards(true);
+    axios.get(`${API_URL}/boards`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        setBoards(res.data);
+        if (res.data.length > 0) {
+          setSelectedBoard(res.data[0]);
+          loadBoardContent(res.data[0]);
+        }
+        setLoadingBoards(false);
+      })
+      .catch(() => {
+        setError('Failed to fetch boards');
+        setLoadingBoards(false);
+      });
+    // eslint-disable-next-line
+  }, [token]);
+
+  // Load board content into whiteboard
+  const loadBoardContent = (board: Board) => {
+    setSelectedBoard(board);
+    // Defensive: if content is not set, fallback to default
+    const content = board.content || {};
+    setBoardSize(content.boardSize || { width: '600', height: '400' });
+    setBackgroundImage(content.backgroundImage || null);
+    setImages(content.images || []);
+    setSelectedImageId(null);
+  };
+
+  // Save current board content to backend
+  const saveBoardContent = async () => {
+    if (!selectedBoard || !token) return;
+    setSaving(true);
+    const content = {
+      boardSize,
+      backgroundImage,
+      images,
+    };
+    try {
+      const res = await fetch(`${API_URL}/boards/${selectedBoard._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      setSaving(false);
+    } catch (e) {
+      setError('Failed to save board');
+      setSaving(false);
+    }
+  };
+
+  // Create new board
+  const handleCreateBoard = async () => {
+    if (!newBoardName.trim() || !token) return;
+    try {
+      const res = await axios.post(
+        `${API_URL}/boards`,
+        { name: newBoardName, content: {} },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const board = res.data;
+      setBoards((prev) => [...prev, board]);
+      setNewBoardName('');
+      loadBoardContent(board);
+    } catch (e) {
+      setError('Failed to create board');
+    }
+  };
+
+  // Board list click handler
+  const handleSelectBoard = (board: Board) => {
+    loadBoardContent(board);
+  };
+
+  // Debounced save function
+  const debouncedSaveBoardContent = useRef(
+    debounce(() => {
+      saveBoardContent();
+    }, 1000)
+  ).current;
+
+  // Save on images/boardSize/backgroundImage change (debounced)
+  useEffect(() => {
+    if (!selectedBoard) return;
+    debouncedSaveBoardContent();
+    // eslint-disable-next-line
+  }, [images, boardSize, backgroundImage, selectedBoard?._id]);
 
   const handleBackgroundUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -89,12 +208,79 @@ const Whiteboard: React.FC = () => {
     Number(boardSize.width) >= 300 &&
     Number(boardSize.height) >= 300;
 
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    delete axios.defaults.headers.common['Authorization'];
+    setBoards([]);
+    setSelectedBoard(null);
+    setNewBoardName('');
+    setBoardSize({ width: '600', height: '400' });
+    setBackgroundImage(null);
+    setImages([]);
+    setSelectedImageId(null);
+    setError(null);
+    setSaving(false);
+    setLoadingBoards(false);
+    navigate('/login');
+  };
+
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
       {/* Header */}
-      <header className="w-full py-6 bg-white shadow text-center">
+      <header className="w-full py-6 bg-white shadow text-center relative">
         <h1 className="text-3xl font-semibold">Canvas Board</h1>
+        <button
+          onClick={handleLogout}
+          className="absolute top-4 right-4 bg-gray-200 hover:bg-red-500 hover:text-white px-4 py-2 rounded"
+        >
+          Logout
+        </button>
       </header>
+      {/* Board List and Create */}
+      <div className="w-full flex flex-col md:flex-row items-center gap-2 px-8 mt-4">
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="font-semibold">Boards:</span>
+          {loadingBoards ? (
+            <span>Loading...</span>
+          ) : (
+            boards.map((board) => (
+              <button
+                key={board._id}
+                className={`px-3 py-1 rounded border text-sm font-medium transition-colors ${
+                  selectedBoard?._id === board._id
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white border-gray-300 hover:bg-blue-100'
+                }`}
+                onClick={() => handleSelectBoard(board)}
+              >
+                {board.name}
+              </button>
+            ))
+          )}
+        </div>
+        <div className="flex gap-2 items-center ml-auto">
+          <input
+            type="text"
+            value={newBoardName}
+            onChange={(e) => setNewBoardName(e.target.value)}
+            placeholder="New board name"
+            className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          <button
+            onClick={handleCreateBoard}
+            className="bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded shadow transition"
+          >
+            + Create
+          </button>
+        </div>
+      </div>
+      {/* Error and Saving Indicator */}
+      {(error || saving) && (
+        <div className="w-full flex justify-center mt-2">
+          {error && <span className="text-red-500 font-medium">{error}</span>}
+          {saving && <span className="text-blue-500 ml-4">Saving...</span>}
+        </div>
+      )}
       {/* Reset Button Row */}
       <div className="w-full flex justify-end px-8 mt-2">
         <button
@@ -268,9 +454,7 @@ const Whiteboard: React.FC = () => {
               className="block w-full text-sm border border-gray-300 rounded cursor-pointer"
             />
           </div>
-          {/* Shapes section - only shown if
-          
-          image is selected */}
+          {/* Shapes section - only shown if image is selected */}
           {selectedImageId && (
             <div>
               <label className="block text-sm font-medium mb-1">Shapes</label>
