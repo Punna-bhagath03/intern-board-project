@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Rnd } from 'react-rnd';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 interface ImageItem {
   id: number;
@@ -46,37 +46,64 @@ const Whiteboard: React.FC = () => {
   const token = localStorage.getItem('token');
 
   const navigate = useNavigate();
+  const { id } = useParams();
 
-  // Fetch boards after login
+  // Fetch all boards for the user
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+    if (!id) return;
     setLoadingBoards(true);
     axios.get(`${API_URL}/boards`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
         setBoards(res.data);
-        if (res.data.length > 0) {
-          setSelectedBoard(res.data[0]);
-          loadBoardContent(res.data[0]);
-        }
         setLoadingBoards(false);
       })
-      .catch(() => {
+      .catch((err) => {
         setError('Failed to fetch boards');
         setLoadingBoards(false);
       });
-    // eslint-disable-next-line
   }, [token]);
+
+  // Fetch the selected board by id
+  useEffect(() => {
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+    if (!id) return;
+    setLoadingBoards(true);
+    axios.get(`${API_URL}/boards/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        setSelectedBoard(res.data);
+        loadBoardContent(res.data);
+        setLoadingBoards(false);
+      })
+      .catch((err) => {
+        setError('Not authorized or board not found');
+        setLoadingBoards(false);
+        navigate('/login');
+      });
+    // eslint-disable-next-line
+  }, [token, id]);
 
   // Load board content into whiteboard
   const loadBoardContent = (board: Board) => {
     setSelectedBoard(board);
     // Defensive: if content is not set, fallback to default
     const content = board.content || {};
-    setBoardSize(content.boardSize || { width: '600', height: '400' });
+    setBoardSize({
+      width: content.width ? content.width.toString() : '600',
+      height: content.height ? content.height.toString() : '400',
+    });
     setBackgroundImage(content.backgroundImage || null);
-    setImages(content.images || []);
+    setImages(content.elements || []);
     setSelectedImageId(null);
   };
 
@@ -85,9 +112,10 @@ const Whiteboard: React.FC = () => {
     if (!selectedBoard || !token) return;
     setSaving(true);
     const content = {
-      boardSize,
+      width: Number(boardSize.width),
+      height: Number(boardSize.height),
       backgroundImage,
-      images,
+      elements: images,
     };
     try {
       const res = await fetch(`${API_URL}/boards/${selectedBoard._id}`, {
@@ -106,6 +134,16 @@ const Whiteboard: React.FC = () => {
     }
   };
 
+  // Utility to fully reset board state and input fields
+  const resetBoardState = () => {
+    setBoardSize({ width: '600', height: '400' });
+    setBackgroundImage(null);
+    setImages([]);
+    setSelectedImageId(null);
+    if (addImagesInputRef.current) addImagesInputRef.current.value = '';
+    if (backgroundInputRef.current) backgroundInputRef.current.value = '';
+  };
+
   // Create new board
   const handleCreateBoard = async () => {
     if (!newBoardName.trim() || !token) return;
@@ -118,7 +156,9 @@ const Whiteboard: React.FC = () => {
       const board = res.data;
       setBoards((prev) => [...prev, board]);
       setNewBoardName('');
-      loadBoardContent(board);
+      setSelectedBoard(board);
+      resetBoardState();
+      navigate(`/board/${board._id}`);
     } catch (e) {
       setError('Failed to create board');
     }
@@ -126,22 +166,9 @@ const Whiteboard: React.FC = () => {
 
   // Board list click handler
   const handleSelectBoard = (board: Board) => {
-    loadBoardContent(board);
+    resetBoardState();
+    navigate(`/board/${board._id}`);
   };
-
-  // Debounced save function
-  const debouncedSaveBoardContent = useRef(
-    debounce(() => {
-      saveBoardContent();
-    }, 1000)
-  ).current;
-
-  // Save on images/boardSize/backgroundImage change (debounced)
-  useEffect(() => {
-    if (!selectedBoard) return;
-    debouncedSaveBoardContent();
-    // eslint-disable-next-line
-  }, [images, boardSize, backgroundImage, selectedBoard?._id]);
 
   const handleBackgroundUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -221,7 +248,7 @@ const Whiteboard: React.FC = () => {
     setError(null);
     setSaving(false);
     setLoadingBoards(false);
-    navigate('/login');
+    navigate('/signup');
   };
 
   return (
@@ -282,7 +309,14 @@ const Whiteboard: React.FC = () => {
         </div>
       )}
       {/* Reset Button Row */}
-      <div className="w-full flex justify-end px-8 mt-2">
+      <div className="w-full flex justify-end gap-2 px-8 mt-2">
+        <button
+          onClick={saveBoardContent}
+          className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded shadow transition"
+          disabled={saving}
+        >
+          {saving ? 'Saving...' : 'Save'}
+        </button>
         <button
           onClick={handleReset}
           className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded shadow transition"

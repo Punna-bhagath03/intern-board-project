@@ -19,8 +19,9 @@ export default function Login() {
       });
       if (res.status === 200) {
         localStorage.setItem('token', res.data.token);
+        localStorage.setItem('defaultBoardId', res.data.defaultBoardId);
         axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
-        navigate('/');
+        navigate(`/board/${res.data.defaultBoardId}`);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed');
@@ -58,6 +59,15 @@ export default function Login() {
           Login
         </button>
       </form>
+      <p className="text-sm mt-4">
+        New user?{' '}
+        <button
+          onClick={() => navigate('/signup')}
+          className="text-blue-500 underline hover:text-blue-700"
+        >
+          Sign Up
+        </button>
+      </p>
     </div>
   );
 }
