@@ -18,10 +18,31 @@ export default function Login() {
         password,
       });
       if (res.status === 200) {
-        localStorage.setItem('token', res.data.token);
-        localStorage.setItem('defaultBoardId', res.data.defaultBoardId);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
-        navigate(`/board/${res.data.defaultBoardId}`);
+        const token = res.data.token;
+        localStorage.setItem('token', token);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        // Fetch user's boards
+        const boardsRes = await axios.get('http://localhost:5001/api/boards', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        let boards = boardsRes.data;
+        if (boards && boards.length > 0) {
+          // Select the most recent (last) board, or first
+          const selectedBoard = boards[boards.length - 1] || boards[0];
+          localStorage.setItem('defaultBoardId', selectedBoard._id);
+          navigate(`/board/${selectedBoard._id}`);
+        } else {
+          // No boards: create a new default board for this user
+          const createRes = await axios.post('http://localhost:5001/api/boards', {
+            name: 'My First Board',
+            content: {},
+          }, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const newBoard = createRes.data;
+          localStorage.setItem('defaultBoardId', newBoard._id);
+          navigate(`/board/${newBoard._id}`);
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed');
