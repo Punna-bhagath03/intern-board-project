@@ -20,6 +20,7 @@ export default function Login() {
       if (res.status === 200) {
         const token = res.data.token;
         localStorage.setItem('token', token);
+        localStorage.setItem('username', username);
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         // Fetch user's boards
         const boardsRes = await axios.get('http://localhost:5001/api/boards', {
