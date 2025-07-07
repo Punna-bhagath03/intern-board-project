@@ -3,6 +3,7 @@ import { Rnd } from 'react-rnd';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
 import { useNavigate, useParams } from 'react-router-dom';
+import html2canvas from 'html2canvas';
 
 interface ImageItem {
   id: number;
@@ -41,9 +42,16 @@ const Whiteboard: React.FC = () => {
   const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
   const addImagesInputRef = useRef<HTMLInputElement | null>(null);
   const backgroundInputRef = useRef<HTMLInputElement | null>(null);
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const setBoardRef = (node: any) => {
+    if (node && node.resizableElement) {
+      boardRef.current = node.resizableElement.current;
+    }
+  };
 
   // Get JWT token from localStorage
   const token = localStorage.getItem('token');
+  const username = localStorage.getItem('username') || '';
 
   const navigate = useNavigate();
   const { id } = useParams();
@@ -285,40 +293,57 @@ const Whiteboard: React.FC = () => {
     }
   };
 
+  // Add handleDownloadBoard function
+  const handleDownloadBoard = async (format: 'png' | 'jpeg' = 'png') => {
+    const boardArea = boardRef.current;
+    if (!boardArea) return;
+    const canvas = await html2canvas(boardArea, { useCORS: true });
+    const dataUrl = canvas.toDataURL(`image/${format}`);
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = `${selectedBoard?.name || 'board'}.${format}`;
+    link.click();
+  };
+
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
       {/* Header */}
-      <header className="w-full py-6 bg-white shadow text-center relative">
-        <h1 className="text-3xl font-semibold">Canvas Board</h1>
-        <button
-          onClick={handleLogout}
-          className="absolute top-4 right-4 bg-gray-200 hover:bg-red-500 hover:text-white px-4 py-2 rounded"
-        >
-          Logout
-        </button>
+      <header className="w-full py-6 bg-gradient-to-r from-gray-900 via-gray-800 to-black shadow text-center relative">
+        <h1 className="text-3xl font-extrabold text-white tracking-wide drop-shadow">Canvas Board</h1>
+        <div className="absolute top-4 right-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center text-gray-700 text-xl font-bold shadow-md border-2 border-gray-200">
+            {username ? username.charAt(0).toUpperCase() : '?'}
+          </div>
+          <button
+            onClick={handleLogout}
+            className="bg-white/90 text-gray-800 hover:bg-gray-200 hover:text-black px-4 py-2 rounded-full font-semibold shadow transition-colors border border-gray-300 hover:border-gray-400"
+          >
+            Logout
+          </button>
+        </div>
       </header>
       {/* Board List and Create */}
       <div className="w-full flex flex-col md:flex-row items-center gap-2 px-8 mt-4">
         <div className="flex flex-wrap gap-2 items-center">
-          <span className="font-semibold">Boards:</span>
+          <span className="font-semibold text-gray-900">Boards:</span>
           {loadingBoards ? (
-            <span>Loading...</span>
+            <span className="text-gray-900">Loading...</span>
           ) : (
             boards.map((board) => (
               <div key={board._id} className="relative flex items-center">
                 <button
-                  className={`group relative px-3 py-1 rounded border text-sm font-medium transition-colors flex items-center pr-7 ${
+                  className={`group relative px-3 py-1 rounded-full border text-sm font-semibold transition-colors flex items-center pr-7 shadow-sm ${
                     selectedBoard?._id === board._id
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white border-gray-300 hover:bg-blue-100'
+                      ? 'bg-white text-gray-900 border-gray-300'
+                      : 'bg-white/80 text-gray-700 border-gray-300 hover:bg-gray-200 hover:text-gray-900'
                   }`}
                   onClick={() => handleSelectBoard(board)}
                   style={{ minWidth: 0 }}
                 >
-                  <span className="truncate max-w-[100px] mr-3">{board.name}</span>
+                  <span className="truncate max-w-[100px] mr-3 text-gray-900">{board.name}</span>
                   <button
                     onClick={e => { e.stopPropagation(); handleDeleteBoard(board._id); }}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 w-6 h-6 flex items-center justify-center rounded-full bg-white/70 border border-gray-300 shadow-sm hover:bg-red-500 hover:text-white hover:border-red-600 hover:scale-110 focus:outline-none"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 w-6 h-6 flex items-center justify-center rounded-full bg-white border border-gray-300 shadow hover:bg-red-500 hover:text-white hover:border-red-600 hover:scale-110 focus:outline-none"
                     title="Delete board"
                     aria-label="Delete board"
                     type="button"
@@ -338,11 +363,11 @@ const Whiteboard: React.FC = () => {
             value={newBoardName}
             onChange={(e) => setNewBoardName(e.target.value)}
             placeholder="New board name"
-            className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="p-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white text-gray-900 placeholder-gray-400 shadow-sm"
           />
           <button
             onClick={handleCreateBoard}
-            className="bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded shadow transition"
+            className="bg-white hover:bg-gray-200 text-gray-900 font-bold px-4 py-2 rounded-full shadow transition border border-gray-300"
           >
             + Create
           </button>
@@ -359,14 +384,21 @@ const Whiteboard: React.FC = () => {
       <div className="w-full flex justify-end gap-2 px-8 mt-2">
         <button
           onClick={saveBoardContent}
-          className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded shadow transition"
+          className="bg-white/80 hover:bg-white text-gray-900 font-bold px-4 py-2 rounded-full shadow transition border border-white/60"
           disabled={saving}
         >
           {saving ? 'Saving...' : 'Save'}
         </button>
         <button
+          onClick={() => handleDownloadBoard('png')}
+          className="bg-white/60 hover:bg-white text-gray-900 font-bold px-4 py-2 rounded-full shadow transition border border-white/40"
+          title="Download board as image"
+        >
+          Download
+        </button>
+        <button
           onClick={handleReset}
-          className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded shadow transition"
+          className="bg-red-500/80 hover:bg-red-600 text-white font-bold px-4 py-2 rounded-full shadow transition"
         >
           Reset
         </button>
@@ -375,24 +407,15 @@ const Whiteboard: React.FC = () => {
       <main className="flex-1 flex flex-col md:flex-row gap-4 p-4 md:p-8 overflow-hidden">
         {/* Board Area */}
         <section className="flex-1 flex items-center justify-center overflow-auto">
-          <div className="relative w-full h-full max-w-full max-h-full min-w-[300px] min-h-[300px] bg-gradient-to-br from-gray-50 to-gray-200 rounded-xl shadow-lg p-2 flex items-center justify-center overflow-auto">
+          <div className="relative w-full h-full max-w-full max-h-full min-w-[300px] min-h-[300px] bg-gradient-to-br from-gray-100/90 via-gray-200/80 to-white/90 rounded-2xl shadow-2xl p-4 flex items-center justify-center overflow-auto backdrop-blur-md">
             <Rnd
-              size={{
-                width: widthNum,
-                height: heightNum,
-              }}
+              ref={setBoardRef}
+              size={{ width: widthNum, height: heightNum }}
               position={{ x: 0, y: 0 }}
               disableDragging
-              enableResizing={{
-                bottom: true,
-                right: true,
-                bottomRight: true,
-              }}
+              enableResizing={{ bottom: true, right: true, bottomRight: true }}
               onResizeStop={(e, direction, ref) => {
-                setBoardSize({
-                  width: ref.offsetWidth.toString(),
-                  height: ref.offsetHeight.toString(),
-                });
+                setBoardSize({ width: ref.offsetWidth.toString(), height: ref.offsetHeight.toString() });
               }}
               minWidth={300}
               minHeight={300}
@@ -496,33 +519,33 @@ const Whiteboard: React.FC = () => {
           </div>
         </section>
         {/* Toolbar */}
-        <aside className="w-full md:w-80 min-w-[250px] bg-white border border-gray-200 shadow-lg rounded-xl p-4 space-y-4 flex-shrink-0">
-          <h2 className="text-xl font-bold mb-2">Tools</h2>
+        <aside className="w-full md:w-80 min-w-[250px] bg-white/80 backdrop-blur-md border border-gray-200 shadow-xl rounded-2xl p-6 space-y-4 flex-shrink-0">
+          <h2 className="text-xl font-extrabold mb-2 text-gray-900">Tools</h2>
           {/* Manual Board Size Inputs */}
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium">Board Width (px)</label>
+            <label className="text-sm font-semibold text-gray-900">Board Width (px)</label>
             <input
               type="number"
               name="width"
               max={2000}
               value={boardSize.width}
               onChange={handleSizeChange}
-              className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white text-gray-900 placeholder-gray-400 shadow-sm"
               placeholder="Enter width ≥ 300"
             />
-            <label className="text-sm font-medium">Board Height (px)</label>
+            <label className="text-sm font-semibold text-gray-900">Board Height (px)</label>
             <input
               type="number"
               name="height"
               max={2000}
               value={boardSize.height}
               onChange={handleSizeChange}
-              className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white text-gray-900 placeholder-gray-400 shadow-sm"
               placeholder="Enter height ≥ 300"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm font-semibold text-gray-900 mb-1">
               Upload Background
             </label>
             <input
@@ -530,24 +553,24 @@ const Whiteboard: React.FC = () => {
               accept="image/*"
               onChange={handleBackgroundUpload}
               ref={backgroundInputRef}
-              className="block w-full text-sm border border-gray-300 rounded cursor-pointer"
+              className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-white text-gray-900 placeholder-gray-400 shadow-sm"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Add Images</label>
+            <label className="block text-sm font-semibold text-gray-900 mb-1">Add Images</label>
             <input
               type="file"
               multiple
               accept="image/*"
               onChange={handleImageUpload}
               ref={addImagesInputRef}
-              className="block w-full text-sm border border-gray-300 rounded cursor-pointer"
+              className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-white text-gray-900 placeholder-gray-400 shadow-sm"
             />
           </div>
           {/* Shapes section - only shown if image is selected */}
           {selectedImageId && (
             <div>
-              <label className="block text-sm font-medium mb-1">Shapes</label>
+              <label className="block text-sm font-semibold text-gray-900 mb-1">Shapes</label>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   {
@@ -603,7 +626,7 @@ const Whiteboard: React.FC = () => {
               </div>
             </div>
           )}
-          <div className="text-gray-400 text-sm pt-2">
+          <div className="text-gray-500 text-sm pt-2 opacity-90">
             More features coming soon...
           </div>
         </aside>
