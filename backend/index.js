@@ -86,7 +86,11 @@ app.post('/login', async (req, res) => {
       expiresIn: '1d',
     });
 
-    res.status(200).json({ token, message: 'Login successful' });
+    // Find the user's earliest board
+    const board = await Board.findOne({ user: user._id }).sort({ createdAt: 1 });
+    const defaultBoardId = board ? board._id : null;
+
+    res.status(200).json({ token, defaultBoardId });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });

@@ -20,7 +20,10 @@ export default function Signup() {
       );
 
       if (res.status === 201) {
-        navigate('/'); // Redirect to main page
+        localStorage.setItem('token', res.data.token);
+        localStorage.setItem('defaultBoardId', res.data.defaultBoardId);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
+        navigate(`/board/${res.data.defaultBoardId}`);
       }
     } catch (err: any) {
       if (err.response && err.response.data?.message) {
