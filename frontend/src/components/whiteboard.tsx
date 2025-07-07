@@ -251,6 +251,40 @@ const Whiteboard: React.FC = () => {
     navigate('/signup');
   };
 
+  // Add handleDeleteBoard function
+  const handleDeleteBoard = async (boardId: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/boards/${boardId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to delete board');
+      setBoards((prev) => {
+        const newBoards = prev.filter((b) => b._id !== boardId);
+        // If the deleted board is selected, move to previous or next board
+        if (selectedBoard && selectedBoard._id === boardId) {
+          if (newBoards.length > 0) {
+            // Prefer previous board, else next
+            const idx = prev.findIndex((b) => b._id === boardId);
+            const newIdx = idx > 0 ? idx - 1 : 0;
+            const nextBoard = newBoards[newIdx];
+            setSelectedBoard(nextBoard);
+            resetBoardState();
+            navigate(`/board/${nextBoard._id}`);
+          } else {
+            setSelectedBoard(null);
+            resetBoardState();
+            navigate('/');
+          }
+        }
+        return newBoards;
+      });
+    } catch (err) {
+      setError('Failed to delete board');
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
       {/* Header */}
@@ -271,17 +305,30 @@ const Whiteboard: React.FC = () => {
             <span>Loading...</span>
           ) : (
             boards.map((board) => (
-              <button
-                key={board._id}
-                className={`px-3 py-1 rounded border text-sm font-medium transition-colors ${
-                  selectedBoard?._id === board._id
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white border-gray-300 hover:bg-blue-100'
-                }`}
-                onClick={() => handleSelectBoard(board)}
-              >
-                {board.name}
-              </button>
+              <div key={board._id} className="relative flex items-center">
+                <button
+                  className={`group relative px-3 py-1 rounded border text-sm font-medium transition-colors flex items-center pr-7 ${
+                    selectedBoard?._id === board._id
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white border-gray-300 hover:bg-blue-100'
+                  }`}
+                  onClick={() => handleSelectBoard(board)}
+                  style={{ minWidth: 0 }}
+                >
+                  <span className="truncate max-w-[100px] mr-3">{board.name}</span>
+                  <button
+                    onClick={e => { e.stopPropagation(); handleDeleteBoard(board._id); }}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 w-6 h-6 flex items-center justify-center rounded-full bg-white/70 border border-gray-300 shadow-sm hover:bg-red-500 hover:text-white hover:border-red-600 hover:scale-110 focus:outline-none"
+                    title="Delete board"
+                    aria-label="Delete board"
+                    type="button"
+                    tabIndex={-1}
+                    style={{ pointerEvents: 'auto', fontSize: '1.1rem', lineHeight: 1 }}
+                  >
+                    <span style={{ fontSize: '1.1rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>❌</span>
+                  </button>
+                </button>
+              </div>
             ))
           )}
         </div>
@@ -425,6 +472,15 @@ const Whiteboard: React.FC = () => {
                             ? 'object-cover clip-circle-img'
                             : 'object-cover'
                         }`}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          borderRadius: shape === 'circle' ? '50%' : undefined,
+                          imageRendering: 'auto',
+                          display: 'block',
+                          background: 'none',
+                        }}
                         draggable={false}
                       />
                     </div>
