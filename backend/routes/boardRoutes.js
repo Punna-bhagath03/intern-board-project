@@ -76,4 +76,19 @@ router.put('/boards/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// DELETE /boards/:id - delete a board if it belongs to the user
+router.delete('/boards/:id', authenticateToken, async (req, res) => {
+  try {
+    const board = await Board.findById(req.params.id);
+    if (!board) return res.status(404).json({ error: "Board not found" });
+    if (board.user.toString() !== req.user.userId) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+    await Board.findByIdAndDelete(req.params.id);
+    res.status(200).json({ message: "Board deleted" });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 module.exports = router; 
