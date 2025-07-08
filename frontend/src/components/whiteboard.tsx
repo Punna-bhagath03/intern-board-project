@@ -98,13 +98,11 @@ const Whiteboard: React.FC = () => {
         setLoadingBoards(false);
         navigate('/login');
       });
-    // eslint-disable-next-line
   }, [token, id]);
 
   // Load board content into whiteboard
   const loadBoardContent = (board: Board) => {
     setSelectedBoard(board);
-    // Defensive: if content is not set, fallback to default
     const content = board.content || {};
     setBoardSize({
       width: content.width ? content.width.toString() : '600',
@@ -142,7 +140,7 @@ const Whiteboard: React.FC = () => {
     }
   };
 
-  // Utility to fully reset board state and input fields
+  // fully reset board state and input fields
   const resetBoardState = () => {
     setBoardSize({ width: '600', height: '400' });
     setBackgroundImage(null);
@@ -178,7 +176,6 @@ const Whiteboard: React.FC = () => {
       resetBoardState();
       navigate(`/board/${board._id}`);
     }
-    // If already selected, do nothing
   };
 
   const handleBackgroundUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -237,7 +234,7 @@ const Whiteboard: React.FC = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
       } catch (err) {
-        // Optionally show error, but still proceed to reset
+        setError('Failed to reset board');
       }
     }
     setBoardSize({ width: '600', height: '400' });
@@ -321,6 +318,80 @@ const Whiteboard: React.FC = () => {
     link.click();
   };
 
+  // Spinner CSS 
+  const spinnerStyle: React.CSSProperties = {
+    display: 'inline-block',
+    width: 18,
+    height: 18,
+    border: '2.5px solid #bbb',
+    borderTop: '2.5px solid #333',
+    borderRadius: '50%',
+    animation: 'spin 0.7s linear infinite',
+    verticalAlign: 'middle',
+    marginLeft: 8,
+    opacity: 1,
+    transition: 'opacity 0.2s',
+  };
+
+  // Add keyframes for spinner animation
+  const spinnerKeyframes = `@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`;
+  if (typeof document !== 'undefined' && !document.getElementById('spinner-keyframes')) {
+    const style = document.createElement('style');
+    style.id = 'spinner-keyframes';
+    style.innerHTML = spinnerKeyframes;
+    document.head.appendChild(style);
+  }
+
+  // Board name editing state
+  const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
+  const [editBoardName, setEditBoardName] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Start editing a board name
+  const startEditingBoard = (board: Board) => {
+    setEditingBoardId(board._id);
+    setEditBoardName(board.name);
+  };
+
+  // Save edited board name
+  const saveBoardName = async (board: Board) => {
+    if (!editBoardName.trim() || editBoardName === board.name) {
+      setEditingBoardId(null);
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const res = await fetch(`${API_URL}/boards/${board._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: editBoardName }),
+      });
+      if (!res.ok) throw new Error('Failed to update board name');
+      const updated = await res.json();
+      setBoards(prev => prev.map(b => b._id === board._id ? { ...b, name: updated.name } : b));
+      if (selectedBoard && selectedBoard._id === board._id) {
+        setSelectedBoard({ ...selectedBoard, name: updated.name });
+      }
+      setEditingBoardId(null);
+    } catch (err) {
+      setError('Failed to update board name');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  // Handle Enter/Escape in input
+  const handleEditInputKey = (e: React.KeyboardEvent<HTMLInputElement>, board: Board) => {
+    if (e.key === 'Enter') {
+      saveBoardName(board);
+    } else if (e.key === 'Escape') {
+      setEditingBoardId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
       {/* Header */}
@@ -341,49 +412,88 @@ const Whiteboard: React.FC = () => {
       {/* Board List and Create */}
       <div className="w-full flex flex-col md:flex-row items-center gap-2 px-8 mt-4">
         <div className="flex flex-wrap gap-2 items-center">
-          <span className="font-semibold text-gray-900">Boards:</span>
-          {loadingBoards ? (
-            <span className="text-gray-900">Loading...</span>
-          ) : (
-            boards.map((board) => (
-              <div key={board._id} className="relative flex items-center">
-                {/* Board label button: only clicking the delete icon triggers deletion */}
-                <button
-                  className={`group relative px-3 py-1 rounded-full border text-sm font-semibold transition-colors flex items-center pr-7 shadow-sm ${
-                    selectedBoard?._id === board._id
-                      ? 'bg-gray-900 text-white border-gray-900' // Selected: dark bg, white text
-                      : 'bg-white/80 text-gray-700 border-gray-300 hover:bg-gray-200 hover:text-gray-900'
-                  }`}
-                  onClick={() => handleSelectBoard(board)}
-                  style={{ minWidth: 0 }}
-                  type="button"
-                >
-                  {/* Board name: does NOT delete or reset the board */}
+          <span className="font-semibold text-gray-900 flex items-center">
+            Boards:
+            {loadingBoards && (
+              <span style={{ ...spinnerStyle, opacity: loadingBoards ? 1 : 0 }} aria-label="Loading" />
+            )}
+          </span>
+          {!loadingBoards && boards.map((board) => (
+            <div key={board._id} className="relative flex items-center">
+              {/* Board label button: only clicking the delete icon triggers deletion */}
+              <button
+                className={`group relative px-3 py-1 rounded-full border text-sm font-semibold transition-colors flex items-center pr-7 shadow-sm ${
+                  selectedBoard?._id === board._id
+                    ? 'bg-gray-900 text-white border-gray-900' // Selected: dark bg, white text
+                    : 'bg-white/80 text-gray-700 border-gray-300 hover:bg-gray-200 hover:text-gray-900'
+                }`}
+                onClick={() => handleSelectBoard(board)}
+                style={{ minWidth: 0 }}
+                type="button"
+              >
+                {/* Board name: does NOT delete or reset the board */}
+                {editingBoardId === board._id ? (
+                  <span className="flex items-center mr-3">
+                    <input
+                      className={`px-2 py-1 rounded text-sm font-semibold border focus:outline-none focus:ring-2 focus:ring-blue-400 ${selectedBoard?._id === board._id ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'}`}
+                      value={editBoardName}
+                      onChange={e => setEditBoardName(e.target.value)}
+                      onKeyDown={e => handleEditInputKey(e, board)}
+                      disabled={editSaving}
+                      autoFocus
+                      style={{ minWidth: 80, maxWidth: 120 }}
+                    />
+                    <button
+                      onClick={e => { e.stopPropagation(); saveBoardName(board); }}
+                      className="ml-1 px-2 py-1 rounded bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition disabled:opacity-60"
+                      disabled={editSaving}
+                      type="button"
+                      tabIndex={-1}
+                    >
+                      {editSaving ? <span style={spinnerStyle} /> : '✅'}
+                    </button>
+                  </span>
+                ) : (
                   <span
-                    className={`truncate max-w-[100px] mr-3 ${selectedBoard?._id === board._id ? 'text-white' : 'text-gray-900'}`}
+                    className={`truncate max-w-[100px] mr-1 ${selectedBoard?._id === board._id ? 'text-white' : 'text-gray-900'} cursor-pointer`}
+                    onDoubleClick={e => { e.stopPropagation(); startEditingBoard(board); }}
+                    title="Double-click to edit"
                   >
                     {board.name}
                   </span>
-                  {/* Delete icon: only this triggers deletion, with stopPropagation */}
+                )}
+                {/* Edit icon */}
+                {editingBoardId !== board._id && (
                   <button
-                    onClick={e => { e.stopPropagation(); handleDeleteBoard(board._id); }}
-                    className={`absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 w-6 h-6 flex items-center justify-center rounded-full border shadow focus:outline-none
-                      ${selectedBoard?._id === board._id
-                        ? 'bg-gray-900 border-gray-900 text-white hover:bg-red-600 hover:border-red-700 hover:text-white'
-                        : 'bg-white border-gray-300 hover:bg-red-500 hover:text-white hover:border-red-600 hover:scale-110'}
-                    `}
-                    title="Delete board"
-                    aria-label="Delete board"
+                    onClick={e => { e.stopPropagation(); startEditingBoard(board); }}
+                    className={`mr-2 text-xs transition-colors ${selectedBoard?._id === board._id ? 'text-white hover:text-blue-200' : 'text-gray-500 hover:text-blue-700'}`}
+                    title="Edit board name"
                     type="button"
                     tabIndex={-1}
-                    style={{ pointerEvents: 'auto', fontSize: '1.1rem', lineHeight: 1 }}
+                    style={{ fontSize: '1.1rem', lineHeight: 1 }}
                   >
-                    <span style={{ fontSize: '1.1rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>❌</span>
+                    ✏️
                   </button>
+                )}
+                {/* Delete icon: only this triggers deletion, with stopPropagation */}
+                <button
+                  onClick={e => { e.stopPropagation(); handleDeleteBoard(board._id); }}
+                  className={`absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 w-6 h-6 flex items-center justify-center rounded-full border shadow focus:outline-none
+                    ${selectedBoard?._id === board._id
+                      ? 'bg-gray-900 border-gray-900 text-white hover:bg-red-600 hover:border-red-700 hover:text-white'
+                      : 'bg-white border-gray-300 hover:bg-red-500 hover:text-white hover:border-red-600 hover:scale-110'}
+                  `}
+                  title="Delete board"
+                  aria-label="Delete board"
+                  type="button"
+                  tabIndex={-1}
+                  style={{ pointerEvents: 'auto', fontSize: '1.1rem', lineHeight: 1 }}
+                >
+                  <span style={{ fontSize: '1.1rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>❌</span>
                 </button>
-              </div>
-            ))
-          )}
+              </button>
+            </div>
+          ))}
         </div>
         <div className="flex gap-2 items-center ml-auto">
           <input
@@ -401,7 +511,7 @@ const Whiteboard: React.FC = () => {
           </button>
         </div>
       </div>
-      {/* Error and Saving Indicator */}
+      {/* Error and Saving */}
       {(error || saving) && (
         <div className="w-full flex justify-center mt-2">
           {error && <span className="text-red-500 font-medium">{error}</span>}
