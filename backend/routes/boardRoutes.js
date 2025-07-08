@@ -71,14 +71,17 @@ router.get('/boards/:id', authenticateToken, async (req, res) => {
 
 // PUT /boards/:id - update board content
 router.put('/boards/:id', authenticateToken, async (req, res) => {
-  const { content } = req.body;
-  if (!content) {
-    return res.status(400).json({ message: 'Content is required.' });
+  const { content, name } = req.body;
+  if (!content && !name) {
+    return res.status(400).json({ message: 'Content or name is required.' });
   }
   try {
+    const updateFields = {};
+    if (content) updateFields.content = content;
+    if (name) updateFields.name = name;
     const board = await Board.findOneAndUpdate(
       { _id: req.params.id, user: req.user.userId },
-      { content },
+      updateFields,
       { new: true }
     );
     if (!board) return res.status(404).json({ message: 'Board not found' });
