@@ -22,17 +22,15 @@ export default function Login() {
         localStorage.setItem('token', token);
         localStorage.setItem('username', username);
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        // Fetch user's boards
-        const boardsRes = await axios.get('http://localhost:5001/api/boards', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        let boards = boardsRes.data;
-        if (boards && boards.length > 0) {
-          // Select the most recent (last) board, or first
-          const selectedBoard = boards[boards.length - 1] || boards[0];
-          localStorage.setItem('defaultBoardId', selectedBoard._id);
-          navigate(`/board/${selectedBoard._id}`);
-        } else {
+        // Fetch user's latest board
+        try {
+          const latestRes = await axios.get('http://localhost:5001/api/boards/latest', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const latestBoard = latestRes.data;
+          localStorage.setItem('defaultBoardId', latestBoard._id);
+          navigate(`/board/${latestBoard._id}`);
+        } catch (err) {
           // No boards: create a new default board for this user
           const createRes = await axios.post('http://localhost:5001/api/boards', {
             name: 'My First Board',
