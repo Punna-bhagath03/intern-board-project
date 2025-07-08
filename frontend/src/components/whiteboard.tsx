@@ -392,6 +392,18 @@ const Whiteboard: React.FC = () => {
     }
   };
 
+  // SVG icons (Heroicons outline, inlined for Pencil and Trash)
+  const PencilIcon = ({ className = '' }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487a2.1 2.1 0 1 1 2.97 2.97L7.5 19.79l-4 1 1-4 12.362-12.303ZM16.862 4.487l2.651 2.651" />
+    </svg>
+  );
+  const TrashIcon = ({ className = '' }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18.75A2.25 2.25 0 0 0 8.25 21h7.5A2.25 2.25 0 0 0 18 18.75V7.5H6v11.25ZM9.75 10.5v6m4.5-6v6M7.5 7.5V6A2.25 2.25 0 0 1 9.75 3.75h4.5A2.25 2.25 0 0 1 16.5 6v1.5m-9 0h12" />
+    </svg>
+  );
+
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
       {/* Header */}
@@ -419,29 +431,34 @@ const Whiteboard: React.FC = () => {
             )}
           </span>
           {!loadingBoards && boards.map((board) => (
-            <div key={board._id} className="relative flex items-center">
-              {/* Board label button: only clicking the delete icon triggers deletion */}
-              <button
-                className={`group relative px-3 py-1 rounded-full border text-sm font-semibold transition-colors flex items-center pr-7 shadow-sm ${
-                  selectedBoard?._id === board._id
-                    ? 'bg-gray-900 text-white border-gray-900' // Selected: dark bg, white text
-                    : 'bg-white/80 text-gray-700 border-gray-300 hover:bg-gray-200 hover:text-gray-900'
-                }`}
-                onClick={() => handleSelectBoard(board)}
-                style={{ minWidth: 0 }}
-                type="button"
+            <div
+              key={board._id}
+              className="relative flex items-center mr-2 mb-2"
+              onClick={() => handleSelectBoard(board)}
+              role="button"
+              tabIndex={0}
+              style={{ cursor: 'pointer' }}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleSelectBoard(board); }}
+            >
+              <div
+                className={`group flex items-center rounded-full border text-sm font-semibold transition-colors shadow-sm px-3 py-1 pr-2 min-w-0 max-w-full
+                  ${selectedBoard?._id === board._id
+                    ? 'bg-gray-900 text-white border-gray-900'
+                    : 'bg-white/80 text-gray-700 border-gray-300 hover:bg-gray-200 hover:text-gray-900'}
+                `}
+                style={{ minWidth: 0, maxWidth: 220 }}
               >
-                {/* Board name: does NOT delete or reset the board */}
+                {/* Board name or input */}
                 {editingBoardId === board._id ? (
-                  <span className="flex items-center mr-3">
+                  <span className="flex items-center mr-2 min-w-0 max-w-[110px]">
                     <input
-                      className={`px-2 py-1 rounded text-sm font-semibold border focus:outline-none focus:ring-2 focus:ring-blue-400 ${selectedBoard?._id === board._id ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'}`}
+                      className={`px-2 py-1 rounded text-sm font-semibold border focus:outline-none focus:ring-2 focus:ring-blue-400 truncate ${selectedBoard?._id === board._id ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'}`}
                       value={editBoardName}
                       onChange={e => setEditBoardName(e.target.value)}
                       onKeyDown={e => handleEditInputKey(e, board)}
                       disabled={editSaving}
                       autoFocus
-                      style={{ minWidth: 80, maxWidth: 120 }}
+                      style={{ minWidth: 60, maxWidth: 110 }}
                     />
                     <button
                       onClick={e => { e.stopPropagation(); saveBoardName(board); }}
@@ -450,12 +467,12 @@ const Whiteboard: React.FC = () => {
                       type="button"
                       tabIndex={-1}
                     >
-                      {editSaving ? <span style={spinnerStyle} /> : '✅'}
+                      {editSaving ? <span style={spinnerStyle} /> : <span className="text-base">✔</span>}
                     </button>
                   </span>
                 ) : (
                   <span
-                    className={`truncate max-w-[100px] mr-1 ${selectedBoard?._id === board._id ? 'text-white' : 'text-gray-900'} cursor-pointer`}
+                    className={`truncate max-w-[110px] mr-2 ${selectedBoard?._id === board._id ? 'text-white' : 'text-gray-900'} cursor-pointer`}
                     onDoubleClick={e => { e.stopPropagation(); startEditingBoard(board); }}
                     title="Double-click to edit"
                   >
@@ -466,32 +483,31 @@ const Whiteboard: React.FC = () => {
                 {editingBoardId !== board._id && (
                   <button
                     onClick={e => { e.stopPropagation(); startEditingBoard(board); }}
-                    className={`mr-2 text-xs transition-colors ${selectedBoard?._id === board._id ? 'text-white hover:text-blue-200' : 'text-gray-500 hover:text-blue-700'}`}
+                    className={`flex items-center justify-center w-7 h-7 rounded-full transition-colors duration-150 ml-0.5 mr-1
+                      ${selectedBoard?._id === board._id ? 'text-white hover:bg-gray-800 hover:text-blue-200' : 'text-gray-500 hover:bg-gray-200 hover:text-blue-700'}`}
                     title="Edit board name"
                     type="button"
                     tabIndex={-1}
-                    style={{ fontSize: '1.1rem', lineHeight: 1 }}
                   >
-                    ✏️
+                    <PencilIcon className="w-4 h-4" />
                   </button>
                 )}
                 {/* Delete icon: only this triggers deletion, with stopPropagation */}
                 <button
                   onClick={e => { e.stopPropagation(); handleDeleteBoard(board._id); }}
-                  className={`absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 w-6 h-6 flex items-center justify-center rounded-full border shadow focus:outline-none
+                  className={`flex items-center justify-center w-7 h-7 rounded-full transition-colors duration-150
                     ${selectedBoard?._id === board._id
-                      ? 'bg-gray-900 border-gray-900 text-white hover:bg-red-600 hover:border-red-700 hover:text-white'
-                      : 'bg-white border-gray-300 hover:bg-red-500 hover:text-white hover:border-red-600 hover:scale-110'}
-                  `}
+                      ? 'text-white hover:bg-red-600 hover:text-white'
+                      : 'text-gray-500 hover:bg-red-500 hover:text-white'}`}
                   title="Delete board"
                   aria-label="Delete board"
                   type="button"
                   tabIndex={-1}
-                  style={{ pointerEvents: 'auto', fontSize: '1.1rem', lineHeight: 1 }}
+                  style={{ fontSize: '1.1rem', lineHeight: 1 }}
                 >
-                  <span style={{ fontSize: '1.1rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>❌</span>
+                  <TrashIcon className="w-4 h-4" />
                 </button>
-              </button>
+              </div>
             </div>
           ))}
         </div>
@@ -564,7 +580,8 @@ const Whiteboard: React.FC = () => {
                 <img
                   src={backgroundImage}
                   alt="Background"
-                  className="absolute top-0 left-0 w-full h-full object-cover z-0 rounded-lg"
+                  className="absolute top-0 left-0 w-full h-full object-fill z-0 rounded-lg"
+                  style={{ objectFit: 'fill', objectPosition: 'center' }}
                 />
               )}
               {images.map((img, idx) => {
