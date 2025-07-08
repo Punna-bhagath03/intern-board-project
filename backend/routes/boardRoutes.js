@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const Board = require('../models/Board');
+const { BoardArchive } = require('../models/Board');
 
 const router = express.Router();
 
@@ -22,6 +23,17 @@ router.get('/boards', authenticateToken, async (req, res) => {
   try {
     const boards = await Board.find({ user: req.user.userId });
     res.json(boards);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /boards/latest - get the latest board for the authenticated user
+router.get('/boards/latest', authenticateToken, async (req, res) => {
+  try {
+    const board = await Board.findOne({ user: req.user.userId }).sort({ createdAt: -1 });
+    if (!board) return res.status(404).json({ message: 'No boards found' });
+    res.json(board);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
@@ -88,6 +100,25 @@ router.delete('/boards/:id', authenticateToken, async (req, res) => {
     res.status(200).json({ message: "Board deleted" });
   } catch (err) {
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /boards/:id/archive - archive the current state of a board
+router.post('/boards/:id/archive', authenticateToken, async (req, res) => {
+  try {
+    const board = await Board.findOne({ _id: req.params.id, user: req.user.userId });
+    if (!board) return res.status(404).json({ message: 'Board not found' });
+    // Create archive
+    const archive = new BoardArchive({
+      user: req.user.userId,
+      boardId: board._id,
+      name: board.name,
+      content: board.content
+    });
+    await archive.save();
+    res.status(201).json({ message: 'Board archived' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

@@ -174,8 +174,11 @@ const Whiteboard: React.FC = () => {
 
   // Board list click handler
   const handleSelectBoard = (board: Board) => {
-    resetBoardState();
-    navigate(`/board/${board._id}`);
+    if (!selectedBoard || selectedBoard._id !== board._id) {
+      resetBoardState();
+      navigate(`/board/${board._id}`);
+    }
+    // If already selected, do nothing
   };
 
   const handleBackgroundUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -225,7 +228,18 @@ const Whiteboard: React.FC = () => {
     if (addImagesInputRef.current) addImagesInputRef.current.value = '';
   };
 
-  const handleReset = () => {
+  // Reset board: archive current state before clearing
+  const handleReset = async () => {
+    if (selectedBoard && token) {
+      try {
+        await fetch(`${API_URL}/boards/${selectedBoard._id}/archive`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch (err) {
+        // Optionally show error, but still proceed to reset
+      }
+    }
     setBoardSize({ width: '600', height: '400' });
     setBackgroundImage(null);
     setImages([]);
@@ -259,9 +273,11 @@ const Whiteboard: React.FC = () => {
     navigate('/signup');
   };
 
-  // Add handleDeleteBoard function
+  // Delete board with confirmation
   const handleDeleteBoard = async (boardId: string) => {
     if (!token) return;
+    const confirmDelete = window.confirm('Are you sure you want to delete this board? This action cannot be undone.');
+    if (!confirmDelete) return;
     try {
       const res = await fetch(`${API_URL}/boards/${boardId}`, {
         method: 'DELETE',
@@ -331,19 +347,31 @@ const Whiteboard: React.FC = () => {
           ) : (
             boards.map((board) => (
               <div key={board._id} className="relative flex items-center">
+                {/* Board label button: only clicking the delete icon triggers deletion */}
                 <button
                   className={`group relative px-3 py-1 rounded-full border text-sm font-semibold transition-colors flex items-center pr-7 shadow-sm ${
                     selectedBoard?._id === board._id
-                      ? 'bg-white text-gray-900 border-gray-300'
+                      ? 'bg-gray-900 text-white border-gray-900' // Selected: dark bg, white text
                       : 'bg-white/80 text-gray-700 border-gray-300 hover:bg-gray-200 hover:text-gray-900'
                   }`}
                   onClick={() => handleSelectBoard(board)}
                   style={{ minWidth: 0 }}
+                  type="button"
                 >
-                  <span className="truncate max-w-[100px] mr-3 text-gray-900">{board.name}</span>
+                  {/* Board name: does NOT delete or reset the board */}
+                  <span
+                    className={`truncate max-w-[100px] mr-3 ${selectedBoard?._id === board._id ? 'text-white' : 'text-gray-900'}`}
+                  >
+                    {board.name}
+                  </span>
+                  {/* Delete icon: only this triggers deletion, with stopPropagation */}
                   <button
                     onClick={e => { e.stopPropagation(); handleDeleteBoard(board._id); }}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 w-6 h-6 flex items-center justify-center rounded-full bg-white border border-gray-300 shadow hover:bg-red-500 hover:text-white hover:border-red-600 hover:scale-110 focus:outline-none"
+                    className={`absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 w-6 h-6 flex items-center justify-center rounded-full border shadow focus:outline-none
+                      ${selectedBoard?._id === board._id
+                        ? 'bg-gray-900 border-gray-900 text-white hover:bg-red-600 hover:border-red-700 hover:text-white'
+                        : 'bg-white border-gray-300 hover:bg-red-500 hover:text-white hover:border-red-600 hover:scale-110'}
+                    `}
                     title="Delete board"
                     aria-label="Delete board"
                     type="button"
