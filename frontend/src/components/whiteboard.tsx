@@ -471,10 +471,20 @@ const Whiteboard: React.FC = () => {
     if (!token) return;
     setDecorLoading(true);
     try {
+      // Find the decor object before deleting
+      const decorToDelete = decors.find((d) => d._id === id);
       await axios.delete(`http://localhost:5001/api/decors/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setDecors((prev) => prev.filter((d) => d._id !== id));
+      // Remove all board images with this decor's src
+      if (decorToDelete) {
+        setImages((prev) =>
+          prev.filter(
+            (img) => img.src !== `http://localhost:5001${decorToDelete.imageUrl}`
+          )
+        );
+      }
     } catch (err) {
       // handle error
     }
@@ -771,8 +781,8 @@ const Whiteboard: React.FC = () => {
             )}
           </div>
         </section>
-        {/* Toolbar */}
-        <aside className="w-full md:w-80 min-w-[250px] bg-white/80 backdrop-blur-md border border-gray-200 shadow-xl rounded-2xl p-6 space-y-4 flex-shrink-0">
+        {/* Tools Sidebar (scrollable) */}
+        <aside className="w-full md:w-80 min-w-[250px] max-h-[calc(100vh-100px)] overflow-y-auto bg-white/80 backdrop-blur-md border border-gray-200 shadow-xl rounded-2xl p-6 space-y-4 flex-shrink-0">
           <h2 className="text-xl font-extrabold mb-2 text-gray-900">Tools</h2>
           {/* Manual Board Size Inputs */}
           <div className="flex flex-col gap-2">
@@ -820,68 +830,70 @@ const Whiteboard: React.FC = () => {
               className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-white text-gray-900 placeholder-gray-400 shadow-sm"
             />
           </div>
-          {/* Shapes section - only shown if image is selected */}
-          {selectedImageId && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-1">Shapes</label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  {
-                    shape: 'rectangle',
-                    icon: (
-                      <svg width="24" height="24">
-                        <rect
-                          x="4"
-                          y="4"
-                          width="16"
-                          height="16"
-                          rx="4"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        />
-                      </svg>
-                    ),
-                    label: 'Rectangle',
-                  },
-                  {
-                    shape: 'circle',
-                    icon: (
-                      <svg width="24" height="24">
-                        <circle
-                          cx="12"
-                          cy="12"
-                          r="8"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        />
-                      </svg>
-                    ),
-                    label: 'Circle',
-                  },
-                ].map(({ shape, icon, label }) => (
-                  <button
-                    key={shape}
-                    className={`flex flex-col items-center justify-center px-2 py-2 rounded border border-gray-300 transition-colors
-                      ${
-                        images.find((img) => img.id === selectedImageId)
-                          ?.shape === shape
+          {/* Shapes section - only for image items, not decor items */}
+          {selectedImageId && (() => {
+            const selectedImg = images.find(img => img.id === selectedImageId);
+            // Only show shapes if the selected image is NOT a decor (not from DEFAULT_DECORS and not a user decor)
+            const isDefaultDecor = selectedImg && DEFAULT_DECORS.some(decor => decor.src === selectedImg.src);
+            const isUserDecor = selectedImg && decors.some(decor => `http://localhost:5001${decor.imageUrl}` === selectedImg.src);
+            if (!selectedImg || isDefaultDecor || isUserDecor) return null;
+            return (
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1">Shapes</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    {
+                      shape: 'rectangle',
+                      icon: (
+                        <svg width="24" height="24">
+                          <rect
+                            x="4"
+                            y="4"
+                            width="16"
+                            height="16"
+                            rx="4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          />
+                        </svg>
+                      ),
+                      label: 'Rectangle',
+                    },
+                    {
+                      shape: 'circle',
+                      icon: (
+                        <svg width="24" height="24">
+                          <circle
+                            cx="12"
+                            cy="12"
+                            r="8"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          />
+                        </svg>
+                      ),
+                      label: 'Circle',
+                    },
+                  ].map(({ shape, icon, label }) => (
+                    <button
+                      key={shape}
+                      className={`flex flex-col items-center justify-center px-2 py-2 rounded border border-gray-300 transition-colors
+                        ${images.find((img) => img.id === selectedImageId)?.shape === shape
                           ? 'bg-blue-600 text-white border-blue-600'
                           : 'bg-gray-100 hover:bg-blue-100'
-                      }`}
-                    onClick={() => handleShapeSelect(shape as any)}
-                  >
-                    {icon}
-                    <span className="text-xs mt-1">{label}</span>
-                  </button>
-                ))}
+                        }`}
+                      onClick={() => handleShapeSelect(shape as any)}
+                    >
+                      {icon}
+                      <span className="text-xs mt-1">{label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-          <div className="text-gray-500 text-sm pt-2 opacity-90">
-            More features coming soon...
-          </div>
+            );
+          })()}
           <div className="mt-6">
             <h3 className="text-lg font-bold mb-2 text-gray-900">Decors</h3>
             <div className="flex flex-wrap gap-2 mb-2">
