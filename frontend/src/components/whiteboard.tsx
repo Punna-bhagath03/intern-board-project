@@ -4,6 +4,11 @@ import axios from 'axios';
 import debounce from 'lodash/debounce';
 import { useNavigate, useParams } from 'react-router-dom';
 import html2canvas from 'html2canvas';
+import garland1 from '../assets/czNmcy1wcml2YXRlL3Jhd3BpeGVsX2ltYWdlcy93ZWJzaXRlX2NvbnRlbnQvbHIvcGYtczYyLXBvbS0wNzMxLXRlZGR5LWpvZHMucG5n-removebg-preview.png';
+import marigoldGarland from '../assets/transparent-flower-arrangement-symmetrical-marigold-garland-on-dark-background6607c6f2040c06.15089414-removebg-preview.png';
+import table1 from '../assets/5e053f7cb0da2910351bb80178095857-removebg-preview.png';
+import table2 from '../assets/images-removebg-preview.png';
+import table3 from '../assets/WhatsApp_Image_2025-07-09_at_11.17.18-removebg-preview.png';
 
 interface ImageItem {
   id: number;
@@ -22,6 +27,21 @@ interface Board {
 }
 
 const API_URL = 'http://localhost:5001/api';
+
+// Preloaded decor images (add your own PNGs/WebPs to assets and list here)
+const PRELOADED_DECORS = [
+  { src: '/src/assets/react.svg', name: 'React Logo' },
+  // Add more preloaded PNG/WebP paths here
+];
+
+// Add default decors (add your PNG/WebP files to assets and list them here)
+const DEFAULT_DECORS = [
+  { src: garland1, name: 'Flower Garland 1' },
+  { src: marigoldGarland, name: 'Marigold Garland' },
+  { src: table1, name: 'Table 1' },
+  { src: table2, name: 'Table 2' },
+  { src: table3, name: 'Table 3' },
+];
 
 const Whiteboard: React.FC = () => {
   // Board management state
@@ -404,6 +424,78 @@ const Whiteboard: React.FC = () => {
     </svg>
   );
 
+  const [decors, setDecors] = useState<any[]>([]); // user-uploaded decors
+  const [decorLoading, setDecorLoading] = useState(false);
+  const decorInputRef = useRef<HTMLInputElement | null>(null);
+  const [hoveredImageId, setHoveredImageId] = useState<number | null>(null);
+
+  // Fetch user decors on mount
+  useEffect(() => {
+    const fetchDecors = async () => {
+      if (!token) return;
+      setDecorLoading(true);
+      try {
+        const res = await axios.get('http://localhost:5001/api/decors', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setDecors(res.data);
+      } catch (err) {
+        // handle error
+      }
+      setDecorLoading(false);
+    };
+    fetchDecors();
+  }, [token]);
+
+  // Handle decor upload
+  const handleDecorUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !['image/png', 'image/webp', 'image/jpeg', 'image/jpg'].includes(file.type)) return;
+    const formData = new FormData();
+    formData.append('image', file);
+    setDecorLoading(true);
+    try {
+      const res = await axios.post('http://localhost:5001/api/decors', formData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setDecors((prev) => [...prev, res.data]);
+    } catch (err) {
+      // handle error
+    }
+    setDecorLoading(false);
+    if (decorInputRef.current) decorInputRef.current.value = '';
+  };
+
+  // Handle decor delete
+  const handleDeleteDecor = async (id: string) => {
+    if (!token) return;
+    setDecorLoading(true);
+    try {
+      await axios.delete(`http://localhost:5001/api/decors/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setDecors((prev) => prev.filter((d) => d._id !== id));
+    } catch (err) {
+      // handle error
+    }
+    setDecorLoading(false);
+  };
+
+  // Add decor to canvas
+  const handleAddDecorToCanvas = (src: string) => {
+    setImages((prev) => [
+      ...prev,
+      {
+        id: Date.now() + Math.random(),
+        src,
+        x: 100,
+        y: 100,
+        width: 100,
+        height: 100,
+      },
+    ]);
+  };
+
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
       {/* Header */}
@@ -574,7 +666,7 @@ const Whiteboard: React.FC = () => {
               minWidth={300}
               minHeight={300}
               bounds="parent"
-              className="relative bg-white overflow-hidden rounded-lg border border-gray-200 shadow-md"
+              className="relative bg-transparent overflow-hidden rounded-lg border border-gray-200 shadow-md"
             >
               {backgroundImage && (
                 <img
@@ -628,6 +720,8 @@ const Whiteboard: React.FC = () => {
                         cursor: 'pointer',
                       }}
                       className="group"
+                      onMouseEnter={() => setHoveredImageId(img.id)}
+                      onMouseLeave={() => setHoveredImageId(null)}
                     >
                       {/* Delete button on hover */}
                       <button
@@ -645,15 +739,19 @@ const Whiteboard: React.FC = () => {
                       <img
                         src={img.src}
                         alt="Draggable"
-                        className={`w-full h-full border border-gray-300 ${
+                        className={`w-full h-full ${
+                          (isSelected || hoveredImageId === img.id)
+                            ? 'border-2 border-blue-500'
+                            : 'border border-transparent'
+                        } ${
                           shape === 'circle'
                             ? 'object-cover clip-circle-img'
-                            : 'object-cover'
+                            : 'object-fill'
                         }`}
                         style={{
                           width: '100%',
                           height: '100%',
-                          objectFit: 'cover',
+                          objectFit: 'fill',
                           borderRadius: shape === 'circle' ? '50%' : undefined,
                           imageRendering: 'auto',
                           display: 'block',
@@ -783,6 +881,53 @@ const Whiteboard: React.FC = () => {
           )}
           <div className="text-gray-500 text-sm pt-2 opacity-90">
             More features coming soon...
+          </div>
+          <div className="mt-6">
+            <h3 className="text-lg font-bold mb-2 text-gray-900">Decors</h3>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {/* Default decors */}
+              {DEFAULT_DECORS.map((decor) => (
+            <button
+    key={decor.src}
+    className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition relative"
+    title={decor.name}
+    onClick={() => handleAddDecorToCanvas(decor.src)}
+    style={{ padding: 2 }}
+  >
+    <img src={decor.src} alt={decor.name} className="max-w-full max-h-full object-contain" />
+  </button>
+))}
+              {/* User decors */}
+              {decors.map((decor) => (
+  <div key={decor._id} className="relative group">
+    <button
+      className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition"
+      title={decor.originalFilename}
+      onClick={() => handleAddDecorToCanvas(`http://localhost:5001${decor.imageUrl}`)}
+      style={{ padding: 2 }}
+    >
+      <img src={`http://localhost:5001${decor.imageUrl}`} alt={decor.originalFilename} className="max-w-full max-h-full object-contain" />
+    </button>
+    <button
+      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition"
+      onClick={() => handleDeleteDecor(decor._id)}
+      title="Delete"
+    >
+      ×
+    </button>
+  </div>
+))}
+              {decorLoading && <span className="text-xs text-gray-400">Loading...</span>}
+            </div>
+            <input
+              type="file"
+              accept="image/png,image/webp,image/jpeg,image/jpg"
+              onChange={handleDecorUpload}
+              ref={decorInputRef}
+              className="block w-full text-xs border border-gray-300 rounded cursor-pointer bg-white text-gray-900 placeholder-gray-400 shadow-sm"
+              style={{ marginTop: 4 }}
+            />
+            <span className="text-xs text-gray-500">PNG/WebP/JPEG only, max 5MB</span>
           </div>
         </aside>
       </main>
