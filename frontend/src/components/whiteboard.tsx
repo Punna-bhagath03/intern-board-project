@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Rnd } from 'react-rnd';
 import axios from 'axios';
-import debounce from 'lodash/debounce';
 import { useNavigate, useParams } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import garland1 from '../assets/czNmcy1wcml2YXRlL3Jhd3BpeGVsX2ltYWdlcy93ZWJzaXRlX2NvbnRlbnQvbHIvcGYtczYyLXBvbS0wNzMxLXRlZGR5LWpvZHMucG5n-removebg-preview.png';
@@ -9,7 +8,9 @@ import marigoldGarland from '../assets/transparent-flower-arrangement-symmetrica
 import table1 from '../assets/5e053f7cb0da2910351bb80178095857-removebg-preview.png';
 import table2 from '../assets/images-removebg-preview.png';
 import table3 from '../assets/WhatsApp_Image_2025-07-09_at_11.17.18-removebg-preview.png';
-
+import candle from '../assets/candle.png';
+import deep1 from '../assets/deep1.png';
+import deep2 from '../assets/deep2.png';
 import FramesSection from './FramesSection';
 
 interface ImageItem {
@@ -43,6 +44,9 @@ const DEFAULT_DECORS = [
   { src: table1, name: 'Table 1' },
   { src: table2, name: 'Table 2' },
   { src: table3, name: 'Table 3' },
+  { src: candle, name: 'Candle' },
+  { src: deep1, name: 'Deep 1' },
+  { src: deep2, name: 'Deep 2' },
 ];
 
 // Frame type for board
