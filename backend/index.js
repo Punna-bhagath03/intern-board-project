@@ -8,6 +8,8 @@ require('dotenv').config();
 const boardRoutes = require('./routes/boardRoutes');
 const User = require('./models/User.js');
 const Board = require('./models/Board.js');
+const Decor = require('./models/Decor');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -97,6 +99,9 @@ app.post('/login', async (req, res) => {
 
 // Routes
 app.use('/api', boardRoutes);
+
+// Serve static files for decor uploads
+app.use('/uploads/decors', express.static(path.join(__dirname, '../uploads/decors')));
 
 // MongoDB Connection
 console.log('🔍 Connecting to MongoDB...');
