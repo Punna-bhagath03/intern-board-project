@@ -5,6 +5,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import Login from './components/login';
 import { useEffect } from 'react';
 import React from 'react';
+import FramesSection from './components/FramesSection';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token');

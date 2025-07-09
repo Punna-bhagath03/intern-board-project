@@ -9,6 +9,7 @@ import marigoldGarland from '../assets/transparent-flower-arrangement-symmetrica
 import table1 from '../assets/5e053f7cb0da2910351bb80178095857-removebg-preview.png';
 import table2 from '../assets/images-removebg-preview.png';
 import table3 from '../assets/WhatsApp_Image_2025-07-09_at_11.17.18-removebg-preview.png';
+import FramesSection from './FramesSection';
 
 interface ImageItem {
   id: number;
@@ -42,6 +43,17 @@ const DEFAULT_DECORS = [
   { src: table2, name: 'Table 2' },
   { src: table3, name: 'Table 3' },
 ];
+
+// Frame type for board
+interface CanvasFrame {
+  id: number;
+  frameSrc: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  imageSrc?: string;
+}
 
 const Whiteboard: React.FC = () => {
   // Board management state
@@ -130,6 +142,7 @@ const Whiteboard: React.FC = () => {
     });
     setBackgroundImage(content.backgroundImage || null);
     setImages(content.elements || []);
+    setCanvasFrames(content.frames || []); // restore frames
     setSelectedImageId(null);
   };
 
@@ -142,6 +155,7 @@ const Whiteboard: React.FC = () => {
       height: Number(boardSize.height),
       backgroundImage,
       elements: images,
+      frames: canvasFrames, // persist frames
     };
     try {
       const res = await fetch(`${API_URL}/boards/${selectedBoard._id}`, {
@@ -506,6 +520,31 @@ const Whiteboard: React.FC = () => {
     ]);
   };
 
+  const [canvasFrames, setCanvasFrames] = useState<CanvasFrame[]>([]);
+
+  const handleAddFrameToBoard = (frameSrc: string) => {
+    setCanvasFrames((prev) => [
+      ...prev,
+      {
+        id: Date.now() + Math.random(),
+        frameSrc,
+        x: 100,
+        y: 100,
+        width: 220,
+        height: 280,
+      },
+    ]);
+  };
+
+  const handleFrameImageUpload = (frameId: number, file: File) => {
+    const url = URL.createObjectURL(file);
+    setCanvasFrames((prev) =>
+      prev.map((f) =>
+        f.id === frameId ? { ...f, imageSrc: url } : f
+      )
+    );
+  };
+
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
       {/* Header */}
@@ -773,6 +812,137 @@ const Whiteboard: React.FC = () => {
                   </Rnd>
                 );
               })}
+              {canvasFrames.map((frame) => (
+                <Rnd
+                  key={frame.id}
+                  size={{ width: frame.width, height: frame.height }}
+                  position={{ x: frame.x, y: frame.y }}
+                  onDragStop={(e, d) => {
+                    setCanvasFrames((prev) =>
+                      prev.map((f) =>
+                        f.id === frame.id ? { ...f, x: d.x, y: d.y } : f
+                      )
+                    );
+                  }}
+                  onResizeStop={(e, direction, ref, delta, position) => {
+                    setCanvasFrames((prev) =>
+                      prev.map((f) =>
+                        f.id === frame.id
+                          ? {
+                              ...f,
+                              width: parseInt(ref.style.width, 10),
+                              height: parseInt(ref.style.height, 10),
+                              x: position.x,
+                              y: position.y,
+                            }
+                          : f
+                      )
+                    );
+                  }}
+                  bounds="parent"
+                  minWidth={100}
+                  minHeight={100}
+                  className="absolute z-20"
+                >
+                  <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+                    {/* Delete button for frame */}
+                    <button
+                      onClick={() => setCanvasFrames((prev) => prev.filter((f) => f.id !== frame.id))}
+                      style={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        zIndex: 10,
+                        background: 'white',
+                        borderRadius: '50%',
+                        border: '1px solid #ccc',
+                        width: 24,
+                        height: 24,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+                        cursor: 'pointer',
+                      }}
+                      title="Delete Frame"
+                    >
+                      <span style={{ color: '#e53e3e', fontWeight: 'bold', fontSize: 16 }}>&times;</span>
+                    </button>
+                    {/* Centered, slightly smaller image or upload area */}
+                    {frame.imageSrc ? (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: '50%',
+                          width: '85%',
+                          height: '85%',
+                          transform: 'translate(-50%, -50%)',
+                          zIndex: 0,
+                          overflow: 'hidden',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: 8,
+                        }}
+                      >
+                        <img
+                          src={frame.imageSrc}
+                          alt="Framed"
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'fill',
+                            display: 'block',
+                            borderRadius: 8,
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <label
+                        style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: '50%',
+                          width: '85%',
+                          height: '85%',
+                          transform: 'translate(-50%, -50%)',
+                          zIndex: 2,
+                          background: 'transparent',
+                          margin: 0,
+                          padding: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: '2px dashed #ccc',
+                          boxSizing: 'border-box',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span className="text-xs text-gray-700">Upload Image</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleFrameImageUpload(frame.id, e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                    {/* Frame border always on top */}
+                    <img
+                      src={frame.frameSrc}
+                      alt="Frame"
+                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 3, pointerEvents: 'none' }}
+                    />
+                  </div>
+                </Rnd>
+              ))}
             </Rnd>
             {!validSize && (
               <p className="text-red-500 text-xs mt-2 absolute bottom-2 left-2 bg-white bg-opacity-80 px-2 py-1 rounded shadow">
@@ -941,6 +1111,7 @@ const Whiteboard: React.FC = () => {
             />
             <span className="text-xs text-gray-500">PNG/WebP/JPEG only, max 5MB</span>
           </div>
+          <FramesSection onAddFrame={handleAddFrameToBoard} />
         </aside>
       </main>
     </div>
