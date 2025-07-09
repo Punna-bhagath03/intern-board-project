@@ -444,7 +444,7 @@ const Whiteboard: React.FC = () => {
     }
   };
 
-  // SVG icons (Heroicons outline, inlined for Pencil and Trash)
+  // 1. Add consistent SVG icons (Heroicons outline style)
   const PencilIcon = ({ className = '' }) => (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487a2.1 2.1 0 1 1 2.97 2.97L7.5 19.79l-4 1 1-4 12.362-12.303ZM16.862 4.487l2.651 2.651" />
@@ -453,6 +453,21 @@ const Whiteboard: React.FC = () => {
   const TrashIcon = ({ className = '' }) => (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18.75A2.25 2.25 0 0 0 8.25 21h7.5A2.25 2.25 0 0 0 18 18.75V7.5H6v11.25ZM9.75 10.5v6m4.5-6v6M7.5 7.5V6A2.25 2.25 0 0 1 9.75 3.75h4.5A2.25 2.25 0 0 1 16.5 6v1.5m-9 0h12" />
+    </svg>
+  );
+  const DownloadIcon = ({ className = '' }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4m-7 7h10" />
+    </svg>
+  );
+  const SaveIcon = ({ className = '' }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 16v2a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-2m10-6V6a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v4m10 0H6" />
+    </svg>
+  );
+  const LogoutIcon = ({ className = '' }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m-3-3h8.25m0 0l-3-3m3 3l-3 3" />
     </svg>
   );
 
@@ -701,22 +716,25 @@ const Whiteboard: React.FC = () => {
       <div className="w-full flex justify-end gap-2 px-8 mt-2">
         <button
           onClick={saveBoardContent}
-          className="bg-white/80 hover:bg-white text-gray-900 font-bold px-4 py-2 rounded-full shadow transition border border-white/60"
+          className="flex items-center gap-2 bg-[#23272f] hover:bg-[#2d323c] text-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-700"
           disabled={saving}
         >
+          <SaveIcon className="w-5 h-5" />
           {saving ? 'Saving...' : 'Save'}
         </button>
         <button
           onClick={() => handleDownloadBoard('png')}
-          className="bg-white/60 hover:bg-white text-gray-900 font-bold px-4 py-2 rounded-full shadow transition border border-white/40"
+          className="flex items-center gap-2 bg-[#23272f] hover:bg-[#2d323c] text-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-700"
           title="Download board as image"
         >
+          <DownloadIcon className="w-5 h-5" />
           Download
         </button>
         <button
           onClick={handleReset}
-          className="bg-red-500/80 hover:bg-red-600 text-white font-bold px-4 py-2 rounded-full shadow transition"
+          className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-full shadow transition"
         >
+          <TrashIcon className="w-5 h-5" />
           Reset
         </button>
       </div>
@@ -976,33 +994,33 @@ const Whiteboard: React.FC = () => {
           </div>
         </section>
         {/* Tools Sidebar (scrollable) */}
-        <aside className="w-full md:w-80 min-w-[250px] max-h-[calc(100vh-100px)] overflow-y-auto bg-white/80 backdrop-blur-md border border-gray-200 shadow-xl rounded-2xl p-6 space-y-4 flex-shrink-0">
+        <aside className="w-full md:w-80 min-w-[250px] max-h-[calc(100vh-100px)] overflow-y-auto bg-[#f4f5f7] backdrop-blur-md border border-gray-200 shadow-xl rounded-2xl p-6 space-y-4 flex-shrink-0">
           <h2 className="text-xl font-extrabold mb-2 text-gray-900">Tools</h2>
           {/* Manual Board Size Inputs */}
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-gray-900">Board Width (px)</label>
+            <label className="text-sm font-semibold text-gray-700">Board Width (px)</label>
             <input
               type="number"
               name="width"
               max={2000}
               value={boardSize.width}
               onChange={handleSizeChange}
-              className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white text-gray-900 placeholder-gray-400 shadow-sm"
+              className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
               placeholder="Enter width ≥ 300"
             />
-            <label className="text-sm font-semibold text-gray-900">Board Height (px)</label>
+            <label className="text-sm font-semibold text-gray-700">Board Height (px)</label>
             <input
               type="number"
               name="height"
               max={2000}
               value={boardSize.height}
               onChange={handleSizeChange}
-              className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white text-gray-900 placeholder-gray-400 shadow-sm"
+              className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
               placeholder="Enter height ≥ 300"
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-900 mb-1">
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
               Upload Background
             </label>
             <input
@@ -1010,18 +1028,18 @@ const Whiteboard: React.FC = () => {
               accept="image/*"
               onChange={handleBackgroundUpload}
               ref={backgroundInputRef}
-              className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-white text-gray-900 placeholder-gray-400 shadow-sm"
+              className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-900 mb-1">Add Images</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Add Images</label>
             <input
               type="file"
               multiple
               accept="image/*"
               onChange={handleImageUpload}
               ref={addImagesInputRef}
-              className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-white text-gray-900 placeholder-gray-400 shadow-sm"
+              className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
             />
           </div>
           {/* Shapes section - only for image items, not decor items */}
@@ -1033,7 +1051,7 @@ const Whiteboard: React.FC = () => {
             if (!selectedImg || isDefaultDecor || isUserDecor) return null;
             return (
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-1">Shapes</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Shapes</label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     {
@@ -1130,7 +1148,7 @@ const Whiteboard: React.FC = () => {
               accept="image/png,image/webp,image/jpeg,image/jpg"
               onChange={handleDecorUpload}
               ref={decorInputRef}
-              className="block w-full text-xs border border-gray-300 rounded cursor-pointer bg-white text-gray-900 placeholder-gray-400 shadow-sm"
+              className="block w-full text-xs border border-gray-300 rounded cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
               style={{ marginTop: 4 }}
             />
             <span className="text-xs text-gray-500">PNG/WebP/JPEG only, max 5MB</span>
