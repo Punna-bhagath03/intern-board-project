@@ -179,6 +179,7 @@ const Whiteboard: React.FC = () => {
     setBoardSize({ width: '600', height: '400' });
     setBackgroundImage(null);
     setImages([]);
+    setCanvasFrames([]); // Clear frames on reset
     setSelectedImageId(null);
     if (addImagesInputRef.current) addImagesInputRef.current.value = '';
     if (backgroundInputRef.current) backgroundInputRef.current.value = '';
@@ -274,6 +275,7 @@ const Whiteboard: React.FC = () => {
     setBoardSize({ width: '600', height: '400' });
     setBackgroundImage(null);
     setImages([]);
+    setCanvasFrames([]); // Clear frames on reset
     setSelectedImageId(null);
     if (addImagesInputRef.current) addImagesInputRef.current.value = '';
     if (backgroundInputRef.current) backgroundInputRef.current.value = '';
@@ -725,6 +727,141 @@ const Whiteboard: React.FC = () => {
                   style={{ objectFit: 'fill', objectPosition: 'center' }}
                 />
               )}
+              {/* Render frames first (background) */}
+              {canvasFrames.map((frame) => (
+                <Rnd
+                  key={frame.id}
+                  size={{ width: frame.width, height: frame.height }}
+                  position={{ x: frame.x, y: frame.y }}
+                  onDragStop={(e, d) => {
+                    setCanvasFrames((prev) =>
+                      prev.map((f) =>
+                        f.id === frame.id ? { ...f, x: d.x, y: d.y } : f
+                      )
+                    );
+                  }}
+                  onResizeStop={(e, direction, ref, delta, position) => {
+                    setCanvasFrames((prev) =>
+                      prev.map((f) =>
+                        f.id === frame.id
+                          ? {
+                              ...f,
+                              width: parseInt(ref.style.width, 10),
+                              height: parseInt(ref.style.height, 10),
+                              x: position.x,
+                              y: position.y,
+                            }
+                          : f
+                      )
+                    );
+                  }}
+                  bounds="parent"
+                  minWidth={100}
+                  minHeight={100}
+                  className="absolute"
+                  style={{ zIndex: 0 }} // Ensure frame Rnd is at the lowest z-index
+                >
+                  <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+                    {/* Delete button for frame */}
+                    <button
+                      onClick={() => setCanvasFrames((prev) => prev.filter((f) => f.id !== frame.id))}
+                      style={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        zIndex: 1,
+                        background: 'white',
+                        borderRadius: '50%',
+                        border: '1px solid #ccc',
+                        width: 24,
+                        height: 24,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+                        cursor: 'pointer',
+                      }}
+                      title="Delete Frame"
+                    >
+                      <span style={{ color: '#e53e3e', fontWeight: 'bold', fontSize: 16 }}>&times;</span>
+                    </button>
+                    {/* Centered, slightly smaller image or upload area */}
+                    {frame.imageSrc ? (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: '50%',
+                          width: '85%',
+                          height: '85%',
+                          transform: 'translate(-50%, -50%)',
+                          zIndex: 0,
+                          overflow: 'hidden',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: 8,
+                        }}
+                      >
+                        <img
+                          src={frame.imageSrc}
+                          alt="Framed"
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'fill',
+                            display: 'block',
+                            borderRadius: 8,
+                            zIndex: 0,
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <label
+                        style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: '50%',
+                          width: '85%',
+                          height: '85%',
+                          transform: 'translate(-50%, -50%)',
+                          zIndex: 0,
+                          background: 'transparent',
+                          margin: 0,
+                          padding: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: '2px dashed #ccc',
+                          boxSizing: 'border-box',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span className="text-xs text-gray-700">Upload Image</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleFrameImageUpload(frame.id, e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                    {/* Frame border always on top of its own image, but below all images/decors */}
+                    <img
+                      src={frame.frameSrc}
+                      alt="Frame"
+                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none' }}
+                    />
+                  </div>
+                </Rnd>
+              ))}
+              {/* Then render images/decors (foreground) */}
               {images.map((img, idx) => {
                 const isSelected = img.id === selectedImageId;
                 const shape = img.shape || 'rectangle';
@@ -812,137 +949,6 @@ const Whiteboard: React.FC = () => {
                   </Rnd>
                 );
               })}
-              {canvasFrames.map((frame) => (
-                <Rnd
-                  key={frame.id}
-                  size={{ width: frame.width, height: frame.height }}
-                  position={{ x: frame.x, y: frame.y }}
-                  onDragStop={(e, d) => {
-                    setCanvasFrames((prev) =>
-                      prev.map((f) =>
-                        f.id === frame.id ? { ...f, x: d.x, y: d.y } : f
-                      )
-                    );
-                  }}
-                  onResizeStop={(e, direction, ref, delta, position) => {
-                    setCanvasFrames((prev) =>
-                      prev.map((f) =>
-                        f.id === frame.id
-                          ? {
-                              ...f,
-                              width: parseInt(ref.style.width, 10),
-                              height: parseInt(ref.style.height, 10),
-                              x: position.x,
-                              y: position.y,
-                            }
-                          : f
-                      )
-                    );
-                  }}
-                  bounds="parent"
-                  minWidth={100}
-                  minHeight={100}
-                  className="absolute z-20"
-                >
-                  <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-                    {/* Delete button for frame */}
-                    <button
-                      onClick={() => setCanvasFrames((prev) => prev.filter((f) => f.id !== frame.id))}
-                      style={{
-                        position: 'absolute',
-                        top: 4,
-                        right: 4,
-                        zIndex: 10,
-                        background: 'white',
-                        borderRadius: '50%',
-                        border: '1px solid #ccc',
-                        width: 24,
-                        height: 24,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-                        cursor: 'pointer',
-                      }}
-                      title="Delete Frame"
-                    >
-                      <span style={{ color: '#e53e3e', fontWeight: 'bold', fontSize: 16 }}>&times;</span>
-                    </button>
-                    {/* Centered, slightly smaller image or upload area */}
-                    {frame.imageSrc ? (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: '50%',
-                          left: '50%',
-                          width: '85%',
-                          height: '85%',
-                          transform: 'translate(-50%, -50%)',
-                          zIndex: 0,
-                          overflow: 'hidden',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRadius: 8,
-                        }}
-                      >
-                        <img
-                          src={frame.imageSrc}
-                          alt="Framed"
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'fill',
-                            display: 'block',
-                            borderRadius: 8,
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <label
-                        style={{
-                          position: 'absolute',
-                          top: '50%',
-                          left: '50%',
-                          width: '85%',
-                          height: '85%',
-                          transform: 'translate(-50%, -50%)',
-                          zIndex: 2,
-                          background: 'transparent',
-                          margin: 0,
-                          padding: 0,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          border: '2px dashed #ccc',
-                          boxSizing: 'border-box',
-                          borderRadius: 8,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <span className="text-xs text-gray-700">Upload Image</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: 'none' }}
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              handleFrameImageUpload(frame.id, e.target.files[0]);
-                            }
-                          }}
-                        />
-                      </label>
-                    )}
-                    {/* Frame border always on top */}
-                    <img
-                      src={frame.frameSrc}
-                      alt="Frame"
-                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 3, pointerEvents: 'none' }}
-                    />
-                  </div>
-                </Rnd>
-              ))}
             </Rnd>
             {!validSize && (
               <p className="text-red-500 text-xs mt-2 absolute bottom-2 left-2 bg-white bg-opacity-80 px-2 py-1 rounded shadow">
