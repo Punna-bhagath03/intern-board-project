@@ -9,6 +9,7 @@ import marigoldGarland from '../assets/transparent-flower-arrangement-symmetrica
 import table1 from '../assets/5e053f7cb0da2910351bb80178095857-removebg-preview.png';
 import table2 from '../assets/images-removebg-preview.png';
 import table3 from '../assets/WhatsApp_Image_2025-07-09_at_11.17.18-removebg-preview.png';
+
 import FramesSection from './FramesSection';
 
 interface ImageItem {
@@ -346,6 +347,17 @@ const Whiteboard: React.FC = () => {
   const handleDownloadBoard = async (format: 'png' | 'jpeg' = 'png') => {
     const boardArea = boardRef.current;
     if (!boardArea) return;
+
+    // Wait for all images inside the board area to load
+    const images = boardArea.querySelectorAll('img');
+    const promises = Array.from(images).map(img => {
+      if (img.complete && img.naturalWidth !== 0) return Promise.resolve();
+      return new Promise(resolve => {
+        img.onload = img.onerror = resolve;
+      });
+    });
+    await Promise.all(promises);
+
     const canvas = await html2canvas(boardArea, { useCORS: true });
     const dataUrl = canvas.toDataURL(`image/${format}`);
     const link = document.createElement('a');
@@ -539,12 +551,16 @@ const Whiteboard: React.FC = () => {
   };
 
   const handleFrameImageUpload = (frameId: number, file: File) => {
-    const url = URL.createObjectURL(file);
-    setCanvasFrames((prev) =>
-      prev.map((f) =>
-        f.id === frameId ? { ...f, imageSrc: url } : f
-      )
-    );
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      setCanvasFrames((prev) =>
+        prev.map((f) =>
+          f.id === frameId ? { ...f, imageSrc: dataUrl } : f
+        )
+      );
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -789,30 +805,31 @@ const Whiteboard: React.FC = () => {
                     {frame.imageSrc ? (
                       <div
                         style={{
-                          position: 'absolute',
-                          top: '50%',
-                          left: '50%',
-                          width: '85%',
-                          height: '85%',
-                          transform: 'translate(-50%, -50%)',
-                          zIndex: 0,
-                          overflow: 'hidden',
+                          width: '100%',
+                          height: '100%',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
+                          overflow: 'hidden',
                           borderRadius: 8,
+                          background: 'transparent',
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          zIndex: 0,
                         }}
                       >
                         <img
                           src={frame.imageSrc}
                           alt="Framed"
                           style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'fill',
+                            width: '85%',
+                            height: '85%',
+                            objectFit: 'contain',
                             display: 'block',
                             borderRadius: 8,
                             zIndex: 0,
+                            background: 'white',
                           }}
                         />
                       </div>
@@ -863,7 +880,7 @@ const Whiteboard: React.FC = () => {
               ))}
               {/* Then render images/decors (foreground) */}
               {images.map((img, idx) => {
-                const isSelected = img.id === selectedImageId;
+                const isHovered = hoveredImageId === img.id;
                 const shape = img.shape || 'rectangle';
                 return (
                   <Rnd
@@ -898,7 +915,6 @@ const Whiteboard: React.FC = () => {
                     className="z-10"
                   >
                     <div
-                      onClick={() => handleImageClick(img.id)}
                       style={{
                         width: '100%',
                         height: '100%',
@@ -926,9 +942,7 @@ const Whiteboard: React.FC = () => {
                         src={img.src}
                         alt="Draggable"
                         className={`w-full h-full ${
-                          (isSelected || hoveredImageId === img.id)
-                            ? 'border-2 border-blue-500'
-                            : 'border border-transparent'
+                          isHovered ? 'border-2 border-blue-500' : 'border border-transparent'
                         } ${
                           shape === 'circle'
                             ? 'object-cover clip-circle-img'
