@@ -84,6 +84,8 @@ interface SettingsModalProps {
   handleSaveSettings: (e: React.FormEvent) => void;
   passwordInputRef: React.RefObject<HTMLInputElement | null>;
   onClose: () => void;
+  showPasswordInput: boolean;
+  setShowPasswordInput: (v: boolean) => void;
 }
 
 function SettingsModal({
@@ -101,7 +103,9 @@ function SettingsModal({
   settingsLoading,
   handleSaveSettings,
   passwordInputRef,
-  onClose
+  onClose,
+  showPasswordInput,
+  setShowPasswordInput
 }: SettingsModalProps) {
   const hasFocusedRef = useRef(false);
   useEffect(() => {
@@ -127,25 +131,36 @@ function SettingsModal({
             <input type="text" value={settingsUsername} onChange={e => setSettingsUsername(e.target.value)} className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400" required />
           </div>
           <div>
-            <label className="block text-sm font-semibold mb-1">New Password</label>
-            <input
-              type="password"
-              ref={passwordInputRef}
-              value={settingsPassword}
-              onChange={e => setSettingsPassword(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
-              className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400"
-              placeholder="Enter new password to update"
-              autoComplete="new-password"
-            />
-          </div>
-          <div>
             <label className="block text-sm font-semibold mb-1">Avatar</label>
             <div className="flex items-center gap-4">
               <img src={settingsAvatarPreview || getAvatarUrl(userAvatar)} alt="Avatar" className="w-16 h-16 rounded-full border object-cover" />
               <input type="file" accept="image/*" onChange={handleAvatarChange} className="block text-sm" />
             </div>
           </div>
+          {!showPasswordInput && (
+            <button
+              type="button"
+              className="w-full py-2 rounded-lg font-bold text-blue-700 border border-blue-600 bg-white hover:bg-blue-50 transition mb-2"
+              onClick={() => setShowPasswordInput(true)}
+            >
+              Update Password
+            </button>
+          )}
+          {showPasswordInput && (
+            <div>
+              <label className="block text-sm font-semibold mb-1">New Password</label>
+              <input
+                type="password"
+                ref={passwordInputRef}
+                value={settingsPassword}
+                onChange={e => setSettingsPassword(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
+                className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400"
+                placeholder="Enter new password to update"
+                autoComplete="new-password"
+              />
+            </div>
+          )}
           {settingsError && <div className="text-red-500 text-sm">{settingsError}</div>}
           {settingsSuccess && <div className="text-green-600 text-sm">{settingsSuccess}</div>}
           <button type="submit" className={`w-full py-2 rounded-lg font-bold text-white transition ${settingsChanged ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'}`} disabled={!settingsChanged || settingsLoading}>
@@ -699,6 +714,9 @@ const Whiteboard: React.FC = () => {
   const [renameBoardName, setRenameBoardName] = useState('');
   const [deletingBoardId, setDeletingBoardId] = useState<string | null>(null);
 
+  // Add state to control password update visibility
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
+
   // Fetch userId and avatar on mount
   useEffect(() => {
     if (!token) return;
@@ -749,6 +767,8 @@ const Whiteboard: React.FC = () => {
     setSettingsChanged(false);
     setSettingsError('');
     setSettingsSuccess('');
+    setShowPasswordInput(false);
+    setSettingsPassword('');
   };
 
   // Focus password input only once per modal open
@@ -790,7 +810,8 @@ const Whiteboard: React.FC = () => {
         setUserAvatar(res.data.avatar || null);
         setSettingsAvatar(res.data.avatar || null);
         setSettingsUsername(res.data.username);
-        setSettingsPassword(''); // Only clear after success
+        setSettingsPassword('');
+        setShowPasswordInput(false);
         localStorage.setItem('username', res.data.username);
         if (res.data.avatar) {
           localStorage.setItem('avatar', res.data.avatar);
@@ -1435,6 +1456,8 @@ const Whiteboard: React.FC = () => {
           handleSaveSettings={handleSaveSettings}
           passwordInputRef={passwordInputRef}
           onClose={() => setSettingsOpen(false)}
+          showPasswordInput={showPasswordInput}
+          setShowPasswordInput={setShowPasswordInput}
         />
       )}
     </div>
