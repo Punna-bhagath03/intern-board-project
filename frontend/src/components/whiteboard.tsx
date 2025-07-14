@@ -31,13 +31,13 @@ interface Board {
 
 const API_URL = 'http://localhost:5001/api';
 
-// Preloaded decor images (add your own PNGs/WebPs to assets and list here)
+// Preloaded decor images
 const PRELOADED_DECORS = [
   { src: '/src/assets/react.svg', name: 'React Logo' },
   // Add more preloaded PNG/WebP paths here
 ];
 
-// Add default decors (add your PNG/WebP files to assets and list them here)
+// Add default decors 
 const DEFAULT_DECORS = [
   { src: garland1, name: 'Flower Garland 1' },
   { src: marigoldGarland, name: 'Marigold Garland' },
