@@ -18,7 +18,7 @@ const BoardSchema = new mongoose.Schema({
 
 module.exports = mongoose.model('Board', BoardSchema);
 
-// Archive schema for board resets
+// for board resets
 const BoardArchiveSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
