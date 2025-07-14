@@ -10,6 +10,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  avatar: {
+    type: String, // URL or path to avatar image
+    default: '',
+  },
 });
 
 module.exports = mongoose.model('User', userSchema);

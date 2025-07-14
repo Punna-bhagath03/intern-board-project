@@ -13,6 +13,13 @@ import deep1 from '../assets/deep1.png';
 import deep2 from '../assets/deep2.png';
 import FramesSection from './FramesSection';
 
+// Helper to get absolute avatar URL
+const getAvatarUrl = (avatar: string | null | undefined): string => {
+  if (!avatar) return '/default-avatar.png';
+  if (avatar.startsWith('http')) return avatar;
+  return `http://localhost:5001/${avatar.replace(/^\/+/, '')}`;
+};
+
 interface ImageItem {
   id: number;
   src: string;
@@ -58,6 +65,97 @@ interface CanvasFrame {
   width: number;
   height: number;
   imageSrc?: string;
+}
+
+// Add explicit types for SettingsModal props
+interface SettingsModalProps {
+  settingsOpen: boolean;
+  settingsUsername: string;
+  setSettingsUsername: (v: string) => void;
+  settingsPassword: string;
+  setSettingsPassword: (v: string) => void;
+  settingsAvatarPreview: string | null;
+  userAvatar: string | null;
+  handleAvatarChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  settingsError: string;
+  settingsSuccess: string;
+  settingsChanged: boolean;
+  settingsLoading: boolean;
+  handleSaveSettings: (e: React.FormEvent) => void;
+  passwordInputRef: React.RefObject<HTMLInputElement | null>;
+  onClose: () => void;
+}
+
+function SettingsModal({
+  settingsOpen,
+  settingsUsername,
+  setSettingsUsername,
+  settingsPassword,
+  setSettingsPassword,
+  settingsAvatarPreview,
+  userAvatar,
+  handleAvatarChange,
+  settingsError,
+  settingsSuccess,
+  settingsChanged,
+  settingsLoading,
+  handleSaveSettings,
+  passwordInputRef,
+  onClose
+}: SettingsModalProps) {
+  const hasFocusedRef = useRef(false);
+  useEffect(() => {
+    if (settingsOpen && !hasFocusedRef.current) {
+      passwordInputRef.current?.focus();
+      hasFocusedRef.current = true;
+    }
+    if (!settingsOpen) {
+      hasFocusedRef.current = false;
+    }
+  }, [settingsOpen, passwordInputRef]);
+  if (!settingsOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 transition-opacity duration-200 opacity-100 pointer-events-auto"
+      aria-modal="true" role="dialog">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 relative transform transition-all duration-300 scale-100 opacity-100"
+        style={{ minHeight: 400 }}>
+        <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold" onClick={onClose} aria-label="Close">&times;</button>
+        <h2 className="text-2xl font-bold mb-4 text-center">User Settings</h2>
+        <form onSubmit={handleSaveSettings} className="space-y-4" autoComplete="off">
+          <div>
+            <label className="block text-sm font-semibold mb-1">Username</label>
+            <input type="text" value={settingsUsername} onChange={e => setSettingsUsername(e.target.value)} className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400" required />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">New Password</label>
+            <input
+              type="password"
+              ref={passwordInputRef}
+              value={settingsPassword}
+              onChange={e => setSettingsPassword(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
+              className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400"
+              placeholder="Enter new password to update"
+              autoComplete="new-password"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Avatar</label>
+            <div className="flex items-center gap-4">
+              <img src={settingsAvatarPreview || getAvatarUrl(userAvatar)} alt="Avatar" className="w-16 h-16 rounded-full border object-cover" />
+              <input type="file" accept="image/*" onChange={handleAvatarChange} className="block text-sm" />
+            </div>
+          </div>
+          {settingsError && <div className="text-red-500 text-sm">{settingsError}</div>}
+          {settingsSuccess && <div className="text-green-600 text-sm">{settingsSuccess}</div>}
+          <button type="submit" className={`w-full py-2 rounded-lg font-bold text-white transition ${settingsChanged ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'}`} disabled={!settingsChanged || settingsLoading}>
+            {settingsLoading ? <span className="inline-block w-5 h-5 border-2 border-white border-t-blue-500 rounded-full animate-spin align-middle mr-2" /> : null}
+            {settingsLoading ? 'Saving...' : 'Save'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 const Whiteboard: React.FC = () => {
@@ -582,15 +680,179 @@ const Whiteboard: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
+  // Add at the top-level of the Whiteboard component:
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+  const [settingsSuccess, setSettingsSuccess] = useState('');
+  const [settingsUsername, setSettingsUsername] = useState(username);
+  const [settingsPassword, setSettingsPassword] = useState('');
+  const [settingsAvatar, setSettingsAvatar] = useState<string | null>(null);
+  const [settingsAvatarFile, setSettingsAvatarFile] = useState<File | null>(null);
+  const [settingsAvatarPreview, setSettingsAvatarPreview] = useState<string | null>(null);
+  const [settingsChanged, setSettingsChanged] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+
+  // For board rename in modal
+  const [renamingBoardId, setRenamingBoardId] = useState<string | null>(null);
+  const [renameBoardName, setRenameBoardName] = useState('');
+  const [deletingBoardId, setDeletingBoardId] = useState<string | null>(null);
+
+  // Fetch userId and avatar on mount
+  useEffect(() => {
+    if (!token) return;
+    axios.get('http://localhost:5001/api/boards', {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(res => {
+      if (res.data && res.data.length > 0 && res.data[0].user) {
+        setUserId(res.data[0].user);
+      }
+    });
+    // On mount, fetch user avatar after login
+    if (!token) return;
+    // Try to get avatar from localStorage first
+    const storedAvatar = localStorage.getItem('avatar');
+    if (storedAvatar) {
+      setUserAvatar(storedAvatar);
+    } else {
+      // Fetch user info (avatar) from backend
+      axios.get('http://localhost:5001/api/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(res => {
+          if (res.data && res.data.avatar) {
+            setUserAvatar(res.data.avatar);
+            localStorage.setItem('avatar', res.data.avatar);
+          } else {
+            setUserAvatar(null);
+            localStorage.removeItem('avatar');
+          }
+        })
+        .catch(() => {
+          setUserAvatar(null);
+          localStorage.removeItem('avatar');
+        });
+    }
+  }, [token]);
+
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
+  const hasFocusedRef = useRef(false);
+
+  // Remove setTimeout or direct .focus() from handleOpenSettings
+  const handleOpenSettings = () => {
+    setSettingsOpen(true);
+    setSettingsUsername(username);
+    setSettingsAvatar(userAvatar);
+    setSettingsAvatarPreview(null);
+    setSettingsAvatarFile(null);
+    setSettingsChanged(false);
+    setSettingsError('');
+    setSettingsSuccess('');
+  };
+
+  // Focus password input only once per modal open
+  useEffect(() => {
+    if (settingsOpen && !hasFocusedRef.current) {
+      passwordInputRef.current?.focus();
+      hasFocusedRef.current = true;
+    }
+    if (!settingsOpen) {
+      hasFocusedRef.current = false;
+    }
+  }, [settingsOpen]);
+
+  // In handleSaveSettings, only clear password after successful save
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userId) return;
+    setSettingsLoading(true);
+    setSettingsError('');
+    setSettingsSuccess('');
+    try {
+      const formData = new FormData();
+      formData.append('username', settingsUsername);
+      if (settingsPassword) formData.append('password', settingsPassword);
+      if (settingsAvatarFile) formData.append('avatar', settingsAvatarFile);
+      const res = await axios.patch(
+        `http://localhost:5001/api/users/${userId}`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          },
+        }
+      );
+      if (res.data) {
+        setSettingsSuccess('Profile updated!');
+        setSettingsOpen(false);
+        setSettingsChanged(false);
+        setUserAvatar(res.data.avatar || null);
+        setSettingsAvatar(res.data.avatar || null);
+        setSettingsUsername(res.data.username);
+        setSettingsPassword(''); // Only clear after success
+        localStorage.setItem('username', res.data.username);
+        if (res.data.avatar) {
+          localStorage.setItem('avatar', res.data.avatar);
+        } else {
+          localStorage.removeItem('avatar');
+        }
+      }
+    } catch (err: any) {
+      setSettingsError(err.response?.data?.message || 'Failed to update profile');
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  // Avatar file change handler
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSettingsAvatarFile(file);
+      setSettingsAvatarPreview(URL.createObjectURL(file));
+      setSettingsChanged(true);
+    }
+  };
+
+  // Username change handler
+  const handleSettingsUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSettingsUsername(e.target.value);
+    setSettingsChanged(true);
+  };
+
+  // Password change handler
+  const handleSettingsPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSettingsPassword(e.target.value);
+    setSettingsChanged(true);
+  };
+
+  // Update settingsChanged logic to enable Save if any field is changed (username, password, or avatar)
+  useEffect(() => {
+    const changed =
+      settingsUsername !== username ||
+      !!settingsPassword ||
+      !!settingsAvatarFile;
+    setSettingsChanged(changed);
+  }, [settingsUsername, username, settingsPassword, settingsAvatarFile]);
+
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
       {/* Header */}
       <header className="w-full py-6 bg-gradient-to-r from-gray-900 via-gray-800 to-black shadow text-center relative">
         <h1 className="text-3xl font-extrabold text-white tracking-wide drop-shadow">Canvas Board</h1>
         <div className="absolute top-4 right-4 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center text-gray-700 text-xl font-bold shadow-md border-2 border-gray-200">
-            {username ? username.charAt(0).toUpperCase() : '?'}
-          </div>
+          <button
+            onClick={handleOpenSettings}
+            className="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center text-gray-700 text-xl font-bold shadow-md border-2 border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 overflow-hidden"
+            title="User Settings"
+          >
+            {userAvatar ? (
+              <img src={getAvatarUrl(userAvatar)} alt="Avatar" className="w-10 h-10 rounded-full object-cover" />
+            ) : (
+              username ? username.charAt(0).toUpperCase() : '?'
+            )}
+          </button>
           <button
             onClick={handleLogout}
             className="bg-white/90 text-gray-800 hover:bg-gray-200 hover:text-black px-4 py-2 rounded-full font-semibold shadow transition-colors border border-gray-300 hover:border-gray-400"
@@ -1156,6 +1418,25 @@ const Whiteboard: React.FC = () => {
           <FramesSection onAddFrame={handleAddFrameToBoard} />
         </aside>
       </main>
+      {settingsOpen && (
+        <SettingsModal
+          settingsOpen={settingsOpen}
+          settingsUsername={settingsUsername}
+          setSettingsUsername={setSettingsUsername}
+          settingsPassword={settingsPassword}
+          setSettingsPassword={setSettingsPassword}
+          settingsAvatarPreview={settingsAvatarPreview}
+          userAvatar={userAvatar}
+          handleAvatarChange={handleAvatarChange}
+          settingsError={settingsError}
+          settingsSuccess={settingsSuccess}
+          settingsChanged={settingsChanged}
+          settingsLoading={settingsLoading}
+          handleSaveSettings={handleSaveSettings}
+          passwordInputRef={passwordInputRef}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
     </div>
   );
 };
