@@ -10,6 +10,8 @@ const User = require('./models/User.js');
 const Board = require('./models/Board.js');
 const Decor = require('./models/Decor');
 const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -20,7 +22,7 @@ app.use(express.json());
 app.use(
   cors({
     origin: 'http://localhost:5173',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'], // Added PATCH
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
@@ -100,8 +102,60 @@ app.post('/login', async (req, res) => {
 // Routes
 app.use('/api', boardRoutes);
 
+// Ensure uploads/avatars directory exists
+const avatarsDir = path.join(__dirname, '../uploads/avatars');
+if (!fs.existsSync(avatarsDir)) {
+  fs.mkdirSync(avatarsDir, { recursive: true });
+}
+
+// Multer setup for avatar uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, avatarsDir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname);
+    cb(null, `${req.params.id}_${Date.now()}${ext}`);
+  },
+});
+const upload = multer({ storage });
+
 // Serve static files for decor uploads
 app.use('/uploads/decors', express.static(path.join(__dirname, '../uploads/decors')));
+
+// Serve all uploads (avatars, decors, etc.)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// PATCH /api/users/:id - update username, password, avatar
+app.patch('/api/users/:id', upload.single('avatar'), async (req, res) => {
+  const { username, password } = req.body;
+  const userId = req.params.id;
+  const update = {};
+  if (username) {
+    // Check for unique username (case-insensitive, not current user)
+    const existing = await User.findOne({ username: { $regex: `^${username}$`, $options: 'i' }, _id: { $ne: userId } });
+    if (existing) return res.status(409).json({ message: 'Username already exists.' });
+    update.username = username;
+  }
+  if (password) {
+    if (password.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters.' });
+    update.password = await bcrypt.hash(password, 10);
+  }
+  if (req.file) {
+    // Save avatar path relative to /uploads
+    update.avatar = `/uploads/avatars/${req.file.filename}`;
+  }
+  try {
+    const user = await User.findByIdAndUpdate(userId, update, { new: true });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({
+      username: user.username,
+      avatar: user.avatar,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update user' });
+  }
+});
 
 // MongoDB Connection
 console.log('🔍 Connecting to MongoDB...');
