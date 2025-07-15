@@ -6,6 +6,8 @@ const Decor = require('../models/Decor');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const ShareLink = require('../models/ShareLink');
+const crypto = require('crypto');
 
 const router = express.Router();
 
@@ -127,6 +129,95 @@ router.post('/boards/:id/archive', authenticateToken, async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
+});
+
+/**
+ * POST /boards/:boardId/share
+ * Auth required. Body: { permission: 'view' | 'edit', expiresIn: number, expiresUnit: 'minutes' | 'hours' | 'days' }
+ * Generates a secure, random token, creates a ShareLink, returns the link.
+ */
+router.post('/boards/:boardId/share', authenticateToken, async (req, res) => {
+  const { permission, expiresIn, expiresUnit } = req.body;
+  const { boardId } = req.params;
+  if (!['view', 'edit'].includes(permission)) {
+    return res.status(400).json({ message: 'Invalid permission' });
+  }
+  if (!expiresIn || !['minutes', 'hours', 'days'].includes(expiresUnit)) {
+    return res.status(400).json({ message: 'Invalid expiry' });
+  }
+  // Check board ownership or edit rights
+  const board = await Board.findById(boardId);
+  if (!board) return res.status(404).json({ message: 'Board not found' });
+  if (board.user.toString() !== req.user.userId) {
+    return res.status(403).json({ message: 'Only the board owner can create share links' });
+  }
+  // Calculate expiry
+  let ms = expiresIn * 60000; // default minutes
+  if (expiresUnit === 'hours') ms = expiresIn * 60 * 60000;
+  if (expiresUnit === 'days') ms = expiresIn * 24 * 60 * 60000;
+  const expiresAt = new Date(Date.now() + ms);
+  // Generate secure token
+  const token = crypto.randomBytes(32).toString('hex');
+  // Save share link
+  const shareLink = new ShareLink({
+    token,
+    boardId,
+    permission,
+    createdBy: req.user.userId,
+    expiresAt,
+  });
+  await shareLink.save();
+  res.status(201).json({
+    link: `${req.protocol}://${req.get('host')}/api/share/${token}`,
+    token,
+    expiresAt,
+    permission,
+  });
+});
+
+/**
+ * GET /share/:token
+ * No auth required. Returns board info if token is valid and not expired, with permission.
+ */
+router.get('/share/:token', async (req, res) => {
+  const { token } = req.params;
+  const shareLink = await ShareLink.findOne({ token });
+  if (!shareLink) return res.status(404).json({ message: 'Invalid or expired link' });
+  if (shareLink.expiresAt < new Date()) {
+    await ShareLink.deleteOne({ _id: shareLink._id }); // Clean up expired
+    return res.status(410).json({ message: 'Link expired' });
+  }
+  // Return board info and permission
+  const board = await Board.findById(shareLink.boardId);
+  if (!board) return res.status(404).json({ message: 'Board not found' });
+  res.json({
+    boardId: board._id,
+    name: board.name,
+    content: board.content,
+    permission: shareLink.permission,
+    expiresAt: shareLink.expiresAt,
+  });
+});
+
+/**
+ * DELETE /share/:token
+ * Auth required (must be creator or board owner). Revokes (deletes) the share link.
+ */
+router.delete('/share/:token', authenticateToken, async (req, res) => {
+  const { token } = req.params;
+  const shareLink = await ShareLink.findOne({ token });
+  if (!shareLink) return res.status(404).json({ message: 'Link not found' });
+  // Only creator or board owner can delete
+  const board = await Board.findById(shareLink.boardId);
+  if (!board) return res.status(404).json({ message: 'Board not found' });
+  if (
+    shareLink.createdBy.toString() !== req.user.userId &&
+    board.user.toString() !== req.user.userId
+  ) {
+    return res.status(403).json({ message: 'Not authorized to revoke this link' });
+  }
+  await ShareLink.deleteOne({ _id: shareLink._id });
+  res.json({ message: 'Share link revoked' });
 });
 
 // Multer setup for decor uploads
