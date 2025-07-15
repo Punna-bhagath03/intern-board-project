@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 
 export default function Login() {
@@ -7,6 +7,16 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // On mount, persist redirect param to localStorage if present
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const redirect = params.get('redirect');
+    if (redirect) {
+      localStorage.setItem('share-redirect', redirect);
+    }
+  }, [location.search]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,6 +32,13 @@ export default function Login() {
         localStorage.setItem('token', token);
         localStorage.setItem('username', username);
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        // Persistent share-redirect logic
+        const redirectPath = localStorage.getItem('share-redirect');
+        if (redirectPath) {
+          localStorage.removeItem('share-redirect');
+          navigate(redirectPath, { replace: true });
+          return;
+        }
         // Fetch user's latest board
         try {
           const latestRes = await axios.get('http://localhost:5001/api/boards/latest', {

@@ -67,10 +67,50 @@ router.post('/boards', authenticateToken, async (req, res) => {
 // GET /boards/:id - get a single board by id
 router.get('/boards/:id', authenticateToken, async (req, res) => {
   try {
-    const board = await Board.findOne({ _id: req.params.id, user: req.user.userId });
-    if (!board) return res.status(404).json({ message: 'Board not found' });
-    res.json(board);
+    const boardId = req.params.id;
+    const userId = req.user.userId;
+    const shareToken = req.headers['x-share-token'];
+    console.log('GET /boards/:id', { boardId, userId, shareToken });
+    // Try owner access
+    let board = await Board.findOne({ _id: boardId, user: userId });
+    if (board) {
+      console.log('Access: owner', { boardId, userId });
+      return res.json(board);
+    }
+    // Try collaborator access
+    board = await Board.findOne({ _id: boardId, 'collaborators.userId': userId });
+    if (board) {
+      console.log('Access: collaborator', { boardId, userId });
+      return res.json(board);
+    }
+    // Try share token access
+    if (shareToken) {
+      const ShareLink = require('../models/ShareLink');
+      const shareLink = await ShareLink.findOne({ token: shareToken, boardId });
+      console.log('ShareLink found:', !!shareLink, shareLink);
+      if (shareLink && shareLink.expiresAt > new Date()) {
+        board = await Board.findById(boardId);
+        if (board) {
+          // If permission is 'edit' and user is logged in, add as collaborator if not already
+          if (shareLink.permission === 'edit' && userId) {
+            const alreadyCollaborator = board.collaborators.some(
+              (c) => c.userId.toString() === userId
+            );
+            if (!alreadyCollaborator) {
+              board.collaborators.push({ userId, permission: 'edit' });
+              await board.save();
+              console.log('Added as collaborator', { boardId, userId });
+            }
+          }
+          console.log('Access: share token', { boardId, userId });
+          return res.json(board);
+        }
+      }
+    }
+    console.log('Access denied', { boardId, userId, shareToken });
+    return res.status(404).json({ message: 'Board not found' });
   } catch (err) {
+    console.error('Error in /api/boards/:id', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
