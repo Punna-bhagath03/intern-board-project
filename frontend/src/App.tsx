@@ -3,37 +3,50 @@ import Whiteboard from './components/whiteboard';
 import Signup from './components/signup';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Login from './components/login';
-import { useEffect } from 'react';
 import React from 'react';
 import FramesSection from './components/FramesSection';
 import JoinBoard from './components/JoinBoard';
+import LandingPage from './pages/LandingPage';
+import AdminDashboard from './pages/AdminDashboard';
+import UserAnalytics from './pages/UserAnalytics';
+import AdminBoardView from './pages/AdminBoardView';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) {
   const token = localStorage.getItem('token');
+  const role = localStorage.getItem('role');
   const location = useLocation();
   if (!token) {
     // Use the full current path and search as the redirect param
     const redirect = location.pathname + location.search;
     return <Navigate to={`/login?redirect=${encodeURIComponent(redirect)}`} replace />;
   }
+  if (adminOnly && role !== 'admin') {
+    // Not an admin, redirect to default board or 403 page
+    const defaultBoardId = localStorage.getItem('defaultBoardId');
+    return <Navigate to={defaultBoardId ? `/board/${defaultBoardId}` : '/board'} replace />;
+  }
   return <>{children}</>;
 }
 
-function RedirectOnStart() {
+function LandingOrRedirect() {
   const token = localStorage.getItem('token');
-  // If token exists, redirect to /board/:id (need to get id from localStorage or backend)
   const defaultBoardId = localStorage.getItem('defaultBoardId');
-  if (token && defaultBoardId) {
-    return <Navigate to={`/board/${defaultBoardId}`} replace />;
+  const location = useLocation();
+  // If already on an admin route, don't redirect
+  if (location.pathname.startsWith('/admin')) {
+    return null; // Let the admin route render
   }
-  return <Navigate to="/signup" replace />;
+  if (token) {
+    return <Navigate to={defaultBoardId ? `/board/${defaultBoardId}` : '/board'} replace />;
+  }
+  return <LandingPage />;
 }
 
 function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<RedirectOnStart />} />
+        <Route path="/" element={<LandingOrRedirect />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/login" element={<Login />} />
         <Route path="/board/:id" element={
@@ -42,7 +55,23 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/join" element={<JoinBoard />} />
-        <Route path="*" element={<Navigate to="/signup" replace />} />
+        {/* Admin routes */}
+        <Route path="/admin/dashboard" element={
+          <ProtectedRoute adminOnly={true}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/user/:id/analytics" element={
+          <ProtectedRoute adminOnly={true}>
+            <UserAnalytics />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/board/:boardId" element={
+          <ProtectedRoute adminOnly={true}>
+            <AdminBoardView />
+          </ProtectedRoute>
+        } />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

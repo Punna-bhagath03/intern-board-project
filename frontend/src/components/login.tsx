@@ -4,6 +4,7 @@ import axios from 'axios';
 
 export default function Login() {
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export default function Login() {
     try {
       const res = await axios.post('http://localhost:5001/login', {
         username,
+        email,
         password,
       });
       if (res.status === 200) {
@@ -80,6 +82,13 @@ export default function Login() {
           onChange={(e) => setUsername(e.target.value)}
           className="w-full p-2 mb-4 border rounded"
           required
+        />
+        <input
+          type="email"
+          placeholder="Email (optional)"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full p-2 mb-4 border rounded"
         />
         <input
           type="password"

@@ -14,6 +14,32 @@ const userSchema = new mongoose.Schema({
     type: String, // URL or path to avatar image
     default: '',
   },
-});
+  email: {
+    type: String,
+    unique: true,
+    // required: true, // Make email optional for old users
+  },
+  status: {
+    type: String,
+    enum: ['active', 'pending', 'suspended'],
+    default: 'active',
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user',
+  },
+  lastLogin: {
+    type: Date,
+    default: null,
+  },
+  loginHistory: [
+    {
+      date: { type: Date, default: Date.now },
+      ip: { type: String },
+      userAgent: { type: String },
+    }
+  ],
+}, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

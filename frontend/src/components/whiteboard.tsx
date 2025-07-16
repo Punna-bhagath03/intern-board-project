@@ -966,6 +966,29 @@ const Whiteboard: React.FC = () => {
     if (decorInputRef.current) decorInputRef.current.value = '';
   };
 
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  // Fetch user role on mount if not in localStorage
+  useEffect(() => {
+    const storedRole = localStorage.getItem('role');
+    if (storedRole) {
+      setUserRole(storedRole);
+    } else if (token) {
+      axios.get('http://localhost:5001/api/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(res => {
+          if (res.data && res.data.role) {
+            setUserRole(res.data.role);
+            localStorage.setItem('role', res.data.role);
+          }
+        })
+        .catch(() => {
+          setUserRole(null);
+        });
+    }
+  }, [token]);
+
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
       {/* Header */}
@@ -995,6 +1018,16 @@ const Whiteboard: React.FC = () => {
           </button>
         )}
         <div className="absolute top-4 right-4 flex items-center gap-4">
+          {/* Admin Dashboard button */}
+          {userRole === 'admin' && (
+            <button
+              onClick={() => navigate('/admin/dashboard')}
+              className="bg-purple-600 text-white rounded px-4 py-2 font-semibold shadow hover:bg-purple-700 transition-colors"
+              title="Go to Admin Dashboard"
+            >
+              Dashboard
+            </button>
+          )}
           <button
             onClick={handleOpenSettings}
             className="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center text-gray-700 text-xl font-bold shadow-md border-2 border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 overflow-hidden"
