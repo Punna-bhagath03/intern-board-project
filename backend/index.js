@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const boardRoutes = require('./routes/boardRoutes');
+const { router: adminRouter } = require('./routes/admin');
 const User = require('./models/User.js');
 const Board = require('./models/Board.js');
 const Decor = require('./models/Decor');
@@ -37,20 +38,22 @@ app.get('/', (req, res) => {
 
 //  Register route
 app.post('/register', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, email, password } = req.body;
 
-  if (!username || !password)
+  if (!username || !email || !password)
     return res
       .status(400)
-      .json({ message: 'Username and password are required.' });
+      .json({ message: 'Username, email, and password are required.' });
 
   try {
-    const existingUser = await User.findOne({ username });
+    const existingUser = await User.findOne({ $or: [ { username }, { email } ] });
     if (existingUser)
-      return res.status(409).json({ message: 'Username already exists.' });
+      return res.status(409).json({ message: 'Username or email already exists.' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ username, password: hashedPassword });
+    // Set role to 'admin' for username 'bhagath', else default
+    const role = username === 'bhagath' ? 'admin' : 'user';
+    const user = new User({ username, email, password: hashedPassword, role });
     await user.save();
 
     const defaultBoard = new Board({
@@ -69,21 +72,39 @@ app.post('/register', async (req, res) => {
 
 //  Login route
 app.post('/login', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, email, password } = req.body;
 
-  if (!username || !password)
+  if ((!username && !email) || !password)
     return res
       .status(400)
-      .json({ message: 'Username and password are required.' });
+      .json({ message: 'Username or email and password are required.' });
 
   try {
-    const user = await User.findOne({ username });
+    const user = await User.findOne(email ? { email } : { username });
     if (!user)
       return res.status(401).json({ message: 'Invalid credentials' });
+
+    // If bhagath logs in and is not admin, update role to admin
+    if ((username === 'bhagath' || user.username === 'bhagath') && user.role !== 'admin') {
+      user.role = 'admin';
+      await user.save();
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch)
       return res.status(401).json({ message: 'Invalid credentials' });
+
+    // Record last login and login history
+    user.lastLogin = new Date();
+    user.loginHistory = user.loginHistory || [];
+    user.loginHistory.push({
+      date: new Date(),
+      ip: req.headers['x-forwarded-for'] || req.connection.remoteAddress || '',
+      userAgent: req.headers['user-agent'] || '',
+    });
+    // Optionally limit history length
+    if (user.loginHistory.length > 20) user.loginHistory = user.loginHistory.slice(-20);
+    await user.save();
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: '1d',
@@ -92,15 +113,39 @@ app.post('/login', async (req, res) => {
     const board = await Board.findOne({ user: user._id }).sort({ createdAt: 1 });
     const defaultBoardId = board ? board._id : null;
 
-    res.status(200).json({ token, defaultBoardId });
+    res.status(200).json({ token, defaultBoardId, user: { _id: user._id, username: user.username, email: user.email, role: user.role, avatar: user.avatar, status: user.status } });
   } catch (err) {
     console.error(' Login error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
+// Auth middleware for /api/users/me
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'No token provided' });
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ message: 'Invalid token' });
+    req.user = user;
+    next();
+  });
+}
+
+// GET /api/users/me - get current user info (username, avatar, role)
+app.get('/api/users/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ username: user.username, avatar: user.avatar, role: user.role });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch user' });
+  }
+});
+
 // Routes
 app.use('/api', boardRoutes);
+app.use('/api/admin', adminRouter);
 
 // Ensure uploads/avatars directory exists
 const avatarsDir = path.join(__dirname, '../uploads/avatars');
