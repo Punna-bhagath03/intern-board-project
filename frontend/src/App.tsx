@@ -6,12 +6,15 @@ import Login from './components/login';
 import { useEffect } from 'react';
 import React from 'react';
 import FramesSection from './components/FramesSection';
+import JoinBoard from './components/JoinBoard';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token');
   const location = useLocation();
   if (!token) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    // Use the full current path and search as the redirect param
+    const redirect = location.pathname + location.search;
+    return <Navigate to={`/login?redirect=${encodeURIComponent(redirect)}`} replace />;
   }
   return <>{children}</>;
 }
@@ -38,6 +41,7 @@ function App() {
             <Whiteboard />
           </ProtectedRoute>
         } />
+        <Route path="/join" element={<JoinBoard />} />
         <Route path="*" element={<Navigate to="/signup" replace />} />
       </Routes>
     </Router>
