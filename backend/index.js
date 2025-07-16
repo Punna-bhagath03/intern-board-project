@@ -120,6 +120,48 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// Ensure uploads/backgrounds directory exists
+const backgroundsDir = path.join(__dirname, '../uploads/backgrounds');
+if (!fs.existsSync(backgroundsDir)) {
+  fs.mkdirSync(backgroundsDir, { recursive: true });
+}
+
+// Multer setup for background uploads
+const backgroundStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, backgroundsDir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname);
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
+  },
+});
+const backgroundUpload = multer({
+  storage: backgroundStorage,
+  fileFilter: (req, file, cb) => {
+    if (
+      file.mimetype === 'image/png' ||
+      file.mimetype === 'image/webp' ||
+      file.mimetype === 'image/jpeg' ||
+      file.mimetype === 'image/jpg'
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PNG, WebP, and JPEG images are allowed'));
+    }
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+});
+
+// POST /api/backgrounds - upload a new background image
+app.post('/api/backgrounds', backgroundUpload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No file uploaded' });
+  }
+  const imageUrl = `/uploads/backgrounds/${req.file.filename}`;
+  res.status(201).json({ url: imageUrl });
+});
+
 // Serve static files for decor uploads
 app.use('/uploads/decors', express.static(path.join(__dirname, '../uploads/decors')));
 

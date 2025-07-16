@@ -344,10 +344,23 @@ const Whiteboard: React.FC = () => {
     }
   };
 
-  const handleBackgroundUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Update handleBackgroundUpload to upload the file to the backend and use the returned URL
+  const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setBackgroundImage(URL.createObjectURL(file));
+      // Upload to backend
+      const formData = new FormData();
+      formData.append('image', file);
+      try {
+        const res = await axios.post('http://localhost:5001/api/backgrounds', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        if (res.data && res.data.url) {
+          setBackgroundImage(`http://localhost:5001${res.data.url}`);
+        }
+      } catch (err) {
+        // Optionally show error to user
+      }
     }
   };
 
@@ -621,25 +634,6 @@ const Whiteboard: React.FC = () => {
   }, [token]);
 
   // Handle decor upload
-  const handleDecorUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !['image/png', 'image/webp', 'image/jpeg', 'image/jpg'].includes(file.type)) return;
-    const formData = new FormData();
-    formData.append('image', file);
-    setDecorLoading(true);
-    try {
-      const res = await axios.post('http://localhost:5001/api/decors', formData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setDecors((prev) => [...prev, res.data]);
-    } catch (err) {
-      // handle error
-    }
-    setDecorLoading(false);
-    if (decorInputRef.current) decorInputRef.current.value = '';
-  };
-
-  // Handle decor delete
   const handleDeleteDecor = async (id: string) => {
     if (!token) return;
     setDecorLoading(true);
@@ -952,6 +946,25 @@ const Whiteboard: React.FC = () => {
       setOwnerUsernameError(false);
     }
   }, [selectedBoard, userId]);
+
+  // Restore handleDecorUpload for decor image uploads
+  const handleDecorUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !['image/png', 'image/webp', 'image/jpeg', 'image/jpg'].includes(file.type)) return;
+    const formData = new FormData();
+    formData.append('image', file);
+    setDecorLoading(true);
+    try {
+      const res = await axios.post('http://localhost:5001/api/decors', formData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setDecors((prev) => [...prev, res.data]);
+    } catch (err) {
+      // handle error
+    }
+    setDecorLoading(false);
+    if (decorInputRef.current) decorInputRef.current.value = '';
+  };
 
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
