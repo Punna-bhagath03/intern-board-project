@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Rnd } from 'react-rnd';
 import axios from 'axios';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import garland1 from '../assets/czNmcy1wcml2YXRlL3Jhd3BpeGVsX2ltYWdlcy93ZWJzaXRlX2NvbnRlbnQvbHIvcGYtczYyLXBvbS0wNzMxLXRlZGR5LWpvZHMucG5n-removebg-preview.png';
 import marigoldGarland from '../assets/transparent-flower-arrangement-symmetrical-marigold-garland-on-dark-background6607c6f2040c06.15089414-removebg-preview.png';
@@ -12,6 +12,7 @@ import candle from '../assets/candle.png';
 import deep1 from '../assets/deep1.png';
 import deep2 from '../assets/deep2.png';
 import FramesSection from './FramesSection';
+import ShareModal from './ShareModal';
 
 // Helper to get absolute avatar URL
 const getAvatarUrl = (avatar: string | null | undefined): string => {
@@ -34,6 +35,7 @@ interface Board {
   _id: string;
   name: string;
   content: any;
+  user: string; // Add this line to fix linter errors for board.user
 }
 
 const API_URL = 'http://localhost:5001/api';
@@ -205,6 +207,10 @@ const Whiteboard: React.FC = () => {
 
   const navigate = useNavigate();
   const { id } = useParams();
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const shareToken = params.get('shareToken');
+  const sharePermission = params.get('permission');
 
   // Fetch all boards for the user
   useEffect(() => {
@@ -212,7 +218,6 @@ const Whiteboard: React.FC = () => {
       navigate('/login');
       return;
     }
-    if (!id) return;
     setLoadingBoards(true);
     axios.get(`${API_URL}/boards`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -235,8 +240,13 @@ const Whiteboard: React.FC = () => {
     }
     if (!id) return;
     setLoadingBoards(true);
+    // Check for shareToken in URL
+    const headers: any = { Authorization: `Bearer ${token}` };
+    if (shareToken) {
+      headers['x-share-token'] = shareToken;
+    }
     axios.get(`${API_URL}/boards/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers
     })
       .then((res) => {
         setSelectedBoard(res.data);
@@ -244,11 +254,14 @@ const Whiteboard: React.FC = () => {
         setLoadingBoards(false);
       })
       .catch((err) => {
-        setError('Not authorized or board not found');
         setLoadingBoards(false);
-        navigate('/login');
+        if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+          navigate('/login');
+        } else {
+          setError('Board not found or access denied.');
+        }
       });
-  }, [token, id]);
+  }, [token, id, location.search]);
 
   // Load board content into whiteboard
   const loadBoardContent = (board: Board) => {
@@ -857,11 +870,30 @@ const Whiteboard: React.FC = () => {
     setSettingsChanged(changed);
   }, [settingsUsername, username, settingsPassword, settingsAvatarFile]);
 
+  const [shareOpen, setShareOpen] = useState(false);
+
+  // In the header, show board name from selectedBoard?.name
+  // Show a Read Only badge if sharePermission === 'view'
+  // Disable editing features if sharePermission === 'view'
+  // Example for Save button:
+  // <button ... disabled={sharePermission === 'view' || saving}>Save</button>
+  // For upload, reset, add/delete, etc, wrap with similar checks
+
+  // Determine if the current user is the owner
+  const isOwner = selectedBoard && selectedBoard.user === userId;
+
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
       {/* Header */}
       <header className="w-full py-6 bg-gradient-to-r from-gray-900 via-gray-800 to-black shadow text-center relative">
-        <h1 className="text-3xl font-extrabold text-white tracking-wide drop-shadow">Canvas Board</h1>
+        <h1 className="text-3xl font-extrabold text-white tracking-wide drop-shadow">
+          {selectedBoard ?
+            (isOwner ? selectedBoard.name : `${selectedBoard.name} (by ${selectedBoard.user})`)
+            : 'Canvas Board'}
+        </h1>
+        {sharePermission === 'view' && (
+          <span className="absolute left-4 top-4 bg-yellow-400 text-gray-900 font-bold px-3 py-1 rounded-full shadow">Read Only</span>
+        )}
         <div className="absolute top-4 right-4 flex items-center gap-4">
           <button
             onClick={handleOpenSettings}
@@ -880,114 +912,107 @@ const Whiteboard: React.FC = () => {
           >
             Logout
           </button>
+          {/* Share button only for edit or owner */}
+          {selectedBoard && sharePermission !== 'view' && (
+            <button
+              onClick={() => setShareOpen(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full font-semibold shadow border border-blue-700 transition-colors"
+              title="Share this board"
+            >
+              Share
+            </button>
+          )}
         </div>
       </header>
-      {/* Board List and Create */}
-      <div className="w-full flex flex-col md:flex-row items-center gap-2 px-8 mt-4">
-        <div className="flex flex-wrap gap-2 items-center">
-          <span className="font-semibold text-gray-900 flex items-center">
-            Boards:
-            {loadingBoards && (
-              <span style={{ ...spinnerStyle, opacity: loadingBoards ? 1 : 0 }} aria-label="Loading" />
-            )}
-          </span>
-          {!loadingBoards && boards.map((board) => (
-            <div
-              key={board._id}
-              className="relative flex items-center mr-2 mb-2"
-              onClick={() => handleSelectBoard(board)}
-              role="button"
-              tabIndex={0}
-              style={{ cursor: 'pointer' }}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleSelectBoard(board); }}
-            >
+      {/* Board List and Create: only for owner, not for share links */}
+      {isOwner && sharePermission !== 'view' && (
+        <div className="w-full flex flex-col md:flex-row items-center gap-2 px-8 mt-4">
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="font-semibold text-gray-900 flex items-center">
+              Boards:
+              {loadingBoards && (
+                <span style={{ ...spinnerStyle, opacity: loadingBoards ? 1 : 0 }} aria-label="Loading" />
+              )}
+            </span>
+            {!loadingBoards && boards.map((board) => (
               <div
-                className={`group flex items-center rounded-full border text-sm font-semibold transition-colors shadow-sm px-3 py-1 pr-2 min-w-0 max-w-full
-                  ${selectedBoard?._id === board._id
-                    ? 'bg-gray-900 text-white border-gray-900'
-                    : 'bg-white/80 text-gray-700 border-gray-300 hover:bg-gray-200 hover:text-gray-900'}
-                `}
-                style={{ minWidth: 0, maxWidth: 220 }}
+                key={board._id}
+                className="relative flex items-center mr-2 mb-2"
+                onClick={() => handleSelectBoard(board)}
+                role="button"
+                tabIndex={0}
+                style={{ cursor: 'pointer' }}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleSelectBoard(board); }}
               >
-                {/* Board name or input */}
-                {editingBoardId === board._id ? (
-                  <span className="flex items-center mr-2 min-w-0 max-w-[110px]">
-                    <input
-                      className={`px-2 py-1 rounded text-sm font-semibold border focus:outline-none focus:ring-2 focus:ring-blue-400 truncate ${selectedBoard?._id === board._id ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'}`}
-                      value={editBoardName}
-                      onChange={e => setEditBoardName(e.target.value)}
-                      onKeyDown={e => handleEditInputKey(e, board)}
-                      disabled={editSaving}
-                      autoFocus
-                      style={{ minWidth: 60, maxWidth: 110 }}
-                    />
+                <div
+                  className={`group flex items-center rounded-full border text-sm font-semibold transition-colors shadow-sm px-3 py-1 pr-2 min-w-0 max-w-full
+                    ${selectedBoard?._id === board._id
+                      ? 'bg-gray-900 text-white border-gray-900'
+                      : 'bg-white/80 text-gray-700 border-gray-300 hover:bg-gray-200 hover:text-gray-900'}
+                  `}
+                  style={{ minWidth: 0, maxWidth: 220 }}
+                >
+                  {/* Board name or input */}
+                  <span
+                    className={`truncate max-w-[110px] mr-2 ${selectedBoard?._id === board._id ? 'text-white' : 'text-gray-900'} cursor-pointer`}
+                    title={board.name}
+                  >
+                    {board._id === selectedBoard?._id ? selectedBoard?.name : board.name}
+                  </span>
+                  {/* Edit icon: only for owner */}
+                  {editingBoardId !== board._id && board.user === userId && (
                     <button
-                      onClick={e => { e.stopPropagation(); saveBoardName(board); }}
-                      className="ml-1 px-2 py-1 rounded bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition disabled:opacity-60"
-                      disabled={editSaving}
+                      onClick={e => { e.stopPropagation(); startEditingBoard(board); }}
+                      className={`flex items-center justify-center w-7 h-7 rounded-full transition-colors duration-150 ml-0.5 mr-1
+                        ${selectedBoard?._id === board._id ? 'text-white hover:bg-gray-800 hover:text-blue-200' : 'text-gray-500 hover:bg-gray-200 hover:text-blue-700'}`}
+                      title="Edit board name"
                       type="button"
                       tabIndex={-1}
                     >
-                      {editSaving ? <span style={spinnerStyle} /> : <span className="text-base">✔</span>}
+                      <PencilIcon className="w-4 h-4" />
                     </button>
-                  </span>
-                ) : (
-                  <span
-                    className={`truncate max-w-[110px] mr-2 ${selectedBoard?._id === board._id ? 'text-white' : 'text-gray-900'} cursor-pointer`}
-                    onDoubleClick={e => { e.stopPropagation(); startEditingBoard(board); }}
-                    title="Double-click to edit"
-                  >
-                    {board.name}
-                  </span>
-                )}
-                {/* Edit icon */}
-                {editingBoardId !== board._id && (
-                  <button
-                    onClick={e => { e.stopPropagation(); startEditingBoard(board); }}
-                    className={`flex items-center justify-center w-7 h-7 rounded-full transition-colors duration-150 ml-0.5 mr-1
-                      ${selectedBoard?._id === board._id ? 'text-white hover:bg-gray-800 hover:text-blue-200' : 'text-gray-500 hover:bg-gray-200 hover:text-blue-700'}`}
-                    title="Edit board name"
-                    type="button"
-                    tabIndex={-1}
-                  >
-                    <PencilIcon className="w-4 h-4" />
-                  </button>
-                )}
-                {/* Delete icon: only this triggers deletion, with stopPropagation */}
-                <button
-                  onClick={e => { e.stopPropagation(); handleDeleteBoard(board._id); }}
-                  className={`flex items-center justify-center w-7 h-7 rounded-full transition-colors duration-150
-                    ${selectedBoard?._id === board._id
-                      ? 'text-white hover:bg-red-600 hover:text-white'
-                      : 'text-gray-500 hover:bg-red-500 hover:text-white'}`}
-                  title="Delete board"
-                  aria-label="Delete board"
-                  type="button"
-                  tabIndex={-1}
-                  style={{ fontSize: '1.1rem', lineHeight: 1 }}
-                >
-                  <TrashIcon className="w-4 h-4" />
-                </button>
+                  )}
+                  {/* Delete icon: only for owner */}
+                  {board.user === userId && (
+                    <button
+                      onClick={e => { e.stopPropagation(); handleDeleteBoard(board._id); }}
+                      className={`flex items-center justify-center w-7 h-7 rounded-full transition-colors duration-150
+                        ${selectedBoard?._id === board._id
+                          ? 'text-white hover:bg-red-600 hover:text-white'
+                          : 'text-gray-500 hover:bg-red-500 hover:text-white'}`}
+                      title="Delete board"
+                      aria-label="Delete board"
+                      type="button"
+                      tabIndex={-1}
+                      style={{ fontSize: '1.1rem', lineHeight: 1 }}
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
+            ))}
+          </div>
+          {/* Disable create new board for sharePermission 'edit' */}
+          {sharePermission !== 'edit' && (
+            <div className="flex gap-2 items-center ml-auto">
+              <input
+                type="text"
+                value={newBoardName}
+                onChange={(e) => setNewBoardName(e.target.value)}
+                placeholder="New board name"
+                className="p-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white text-gray-900 placeholder-gray-400 shadow-sm"
+              />
+              <button
+                onClick={handleCreateBoard}
+                className="bg-white hover:bg-gray-200 text-gray-900 font-bold px-4 py-2 rounded-full shadow transition border border-gray-300"
+              >
+                + Create
+              </button>
             </div>
-          ))}
+          )}
         </div>
-        <div className="flex gap-2 items-center ml-auto">
-          <input
-            type="text"
-            value={newBoardName}
-            onChange={(e) => setNewBoardName(e.target.value)}
-            placeholder="New board name"
-            className="p-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white text-gray-900 placeholder-gray-400 shadow-sm"
-          />
-          <button
-            onClick={handleCreateBoard}
-            className="bg-white hover:bg-gray-200 text-gray-900 font-bold px-4 py-2 rounded-full shadow transition border border-gray-300"
-          >
-            + Create
-          </button>
-        </div>
-      </div>
+      )}
       {/* Error and Saving */}
       {(error || saving) && (
         <div className="w-full flex justify-center mt-2">
@@ -996,31 +1021,35 @@ const Whiteboard: React.FC = () => {
         </div>
       )}
       {/* Reset Button Row */}
-      <div className="w-full flex justify-end gap-2 px-8 mt-2">
-        <button
-          onClick={saveBoardContent}
-          className="flex items-center gap-2 bg-[#23272f] hover:bg-[#2d323c] text-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-700"
-          disabled={saving}
-        >
-          <SaveIcon className="w-5 h-5" />
-          {saving ? 'Saving...' : 'Save'}
-        </button>
-        <button
-          onClick={() => handleDownloadBoard('png')}
-          className="flex items-center gap-2 bg-[#23272f] hover:bg-[#2d323c] text-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-700"
-          title="Download board as image"
-        >
-          <DownloadIcon className="w-5 h-5" />
-          Download
-        </button>
-        <button
-          onClick={handleReset}
-          className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-full shadow transition"
-        >
-          <TrashIcon className="w-5 h-5" />
-          Reset
-        </button>
-      </div>
+      {sharePermission !== 'view' && (
+        <div className="w-full flex justify-end gap-2 px-8 mt-2">
+          <button
+            onClick={saveBoardContent}
+            className="flex items-center gap-2 bg-[#23272f] hover:bg-[#2d323c] text-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-700"
+            disabled={sharePermission === 'view' || saving}
+          >
+            <SaveIcon className="w-5 h-5" />
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+          <button
+            onClick={() => handleDownloadBoard('png')}
+            className="flex items-center gap-2 bg-[#23272f] hover:bg-[#2d323c] text-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-700"
+            title="Download board as image"
+            disabled={sharePermission === 'view'}
+          >
+            <DownloadIcon className="w-5 h-5" />
+            Download
+          </button>
+          <button
+            onClick={handleReset}
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-full shadow transition"
+            disabled={sharePermission === 'view'}
+          >
+            <TrashIcon className="w-5 h-5" />
+            Reset
+          </button>
+        </div>
+      )}
       {/* Main Content */}
       <main className="flex-1 flex flex-col md:flex-row gap-4 p-4 md:p-8 overflow-hidden">
         {/* Board Area */}
@@ -1030,9 +1059,10 @@ const Whiteboard: React.FC = () => {
               ref={setBoardRef}
               size={{ width: widthNum, height: heightNum }}
               position={{ x: 0, y: 0 }}
-              disableDragging
-              enableResizing={{ bottom: true, right: true, bottomRight: true }}
+              disableDragging={sharePermission === 'view'}
+              enableResizing={sharePermission !== 'view' ? { bottom: true, right: true, bottomRight: true } : {}}
               onResizeStop={(e, direction, ref) => {
+                if (sharePermission === 'view') return;
                 setBoardSize({ width: ref.offsetWidth.toString(), height: ref.offsetHeight.toString() });
               }}
               minWidth={300}
@@ -1042,7 +1072,7 @@ const Whiteboard: React.FC = () => {
             >
               {backgroundImage && (
                 <img
-                  src={backgroundImage}
+                  src={backgroundImage.startsWith('blob:') ? '' : backgroundImage}
                   alt="Background"
                   className="absolute top-0 left-0 w-full h-full object-fill z-0 rounded-lg"
                   style={{ objectFit: 'fill', objectPosition: 'center' }}
@@ -1276,168 +1306,170 @@ const Whiteboard: React.FC = () => {
             )}
           </div>
         </section>
-        {/* Tools Sidebar (scrollable) */}
-        <aside className="w-full md:w-80 min-w-[250px] max-h-[calc(100vh-100px)] overflow-y-auto bg-[#f4f5f7] backdrop-blur-md border border-gray-200 shadow-xl rounded-2xl p-6 space-y-4 flex-shrink-0">
-          <h2 className="text-xl font-extrabold mb-2 text-gray-900">Tools</h2>
-          {/* Manual Board Size Inputs */}
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-gray-700">Board Width (px)</label>
-            <input
-              type="number"
-              name="width"
-              max={2000}
-              value={boardSize.width}
-              onChange={handleSizeChange}
-              className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-              placeholder="Enter width ≥ 300"
-            />
-            <label className="text-sm font-semibold text-gray-700">Board Height (px)</label>
-            <input
-              type="number"
-              name="height"
-              max={2000}
-              value={boardSize.height}
-              onChange={handleSizeChange}
-              className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-              placeholder="Enter height ≥ 300"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Upload Background
-            </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleBackgroundUpload}
-              ref={backgroundInputRef}
-              className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Add Images</label>
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={handleImageUpload}
-              ref={addImagesInputRef}
-              className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-            />
-          </div>
-          {/* Shapes section - only for image items, not decor items */}
-          {selectedImageId && (() => {
-            const selectedImg = images.find(img => img.id === selectedImageId);
-            // Only show shapes if the selected image is NOT a decor (not from DEFAULT_DECORS and not a user decor)
-            const isDefaultDecor = selectedImg && DEFAULT_DECORS.some(decor => decor.src === selectedImg.src);
-            const isUserDecor = selectedImg && decors.some(decor => `http://localhost:5001${decor.imageUrl}` === selectedImg.src);
-            if (!selectedImg || isDefaultDecor || isUserDecor) return null;
-            return (
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Shapes</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    {
-                      shape: 'rectangle',
-                      icon: (
-                        <svg width="24" height="24">
-                          <rect
-                            x="4"
-                            y="4"
-                            width="16"
-                            height="16"
-                            rx="4"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          />
-                        </svg>
-                      ),
-                      label: 'Rectangle',
-                    },
-                    {
-                      shape: 'circle',
-                      icon: (
-                        <svg width="24" height="24">
-                          <circle
-                            cx="12"
-                            cy="12"
-                            r="8"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          />
-                        </svg>
-                      ),
-                      label: 'Circle',
-                    },
-                  ].map(({ shape, icon, label }) => (
-                    <button
-                      key={shape}
-                      className={`flex flex-col items-center justify-center px-2 py-2 rounded border border-gray-300 transition-colors
-                        ${images.find((img) => img.id === selectedImageId)?.shape === shape
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-gray-100 hover:bg-blue-100'
-                        }`}
-                      onClick={() => handleShapeSelect(shape as any)}
-                    >
-                      {icon}
-                      <span className="text-xs mt-1">{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-          <div className="mt-6">
-            <h3 className="text-lg font-bold mb-2 text-gray-900">Decors</h3>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {/* Default decors */}
-              {DEFAULT_DECORS.map((decor) => (
-            <button
-    key={decor.src}
-    className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition relative"
-    title={decor.name}
-    onClick={() => handleAddDecorToCanvas(decor.src)}
-    style={{ padding: 2 }}
-  >
-    <img src={decor.src} alt={decor.name} className="max-w-full max-h-full object-contain" />
-  </button>
-))}
-              {/* User decors */}
-              {decors.map((decor) => (
-  <div key={decor._id} className="relative group">
-    <button
-      className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition"
-      title={decor.originalFilename}
-      onClick={() => handleAddDecorToCanvas(`http://localhost:5001${decor.imageUrl}`)}
-      style={{ padding: 2 }}
-    >
-      <img src={`http://localhost:5001${decor.imageUrl}`} alt={decor.originalFilename} className="max-w-full max-h-full object-contain" />
-    </button>
-    <button
-      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition"
-      onClick={() => handleDeleteDecor(decor._id)}
-      title="Delete"
-    >
-      ×
-    </button>
-  </div>
-))}
-              {decorLoading && <span className="text-xs text-gray-400">Loading...</span>}
+        {/* Sidebar Tools: only for owner or edit permission, not for view links */}
+        {(isOwner || sharePermission === 'edit') && sharePermission !== 'view' && (
+          <aside className="w-full md:w-80 min-w-[250px] max-h-[calc(100vh-100px)] overflow-y-auto bg-[#f4f5f7] backdrop-blur-md border border-gray-200 shadow-xl rounded-2xl p-6 space-y-4 flex-shrink-0">
+            <h2 className="text-xl font-extrabold mb-2 text-gray-900">Tools</h2>
+            {/* Manual Board Size Inputs */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-semibold text-gray-700">Board Width (px)</label>
+              <input
+                type="number"
+                name="width"
+                max={2000}
+                value={boardSize.width}
+                onChange={handleSizeChange}
+                className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+                placeholder="Enter width ≥ 300"
+              />
+              <label className="text-sm font-semibold text-gray-700">Board Height (px)</label>
+              <input
+                type="number"
+                name="height"
+                max={2000}
+                value={boardSize.height}
+                onChange={handleSizeChange}
+                className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+                placeholder="Enter height ≥ 300"
+              />
             </div>
-            <input
-              type="file"
-              accept="image/png,image/webp,image/jpeg,image/jpg"
-              onChange={handleDecorUpload}
-              ref={decorInputRef}
-              className="block w-full text-xs border border-gray-300 rounded cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-              style={{ marginTop: 4 }}
-            />
-            <span className="text-xs text-gray-500">PNG/WebP/JPEG only, max 5MB</span>
-          </div>
-          <FramesSection onAddFrame={handleAddFrameToBoard} />
-        </aside>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Upload Background
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleBackgroundUpload}
+                ref={backgroundInputRef}
+                className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-semibold text-gray-700">Add Images</label>
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleImageUpload}
+                ref={addImagesInputRef}
+                className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+              />
+            </div>
+            {/* Shapes section - only for image items, not decor items */}
+            {selectedImageId && (() => {
+              const selectedImg = images.find(img => img.id === selectedImageId);
+              // Only show shapes if the selected image is NOT a decor (not from DEFAULT_DECORS and not a user decor)
+              const isDefaultDecor = selectedImg && DEFAULT_DECORS.some(decor => decor.src === selectedImg.src);
+              const isUserDecor = selectedImg && decors.some(decor => `http://localhost:5001${decor.imageUrl}` === selectedImg.src);
+              if (!selectedImg || isDefaultDecor || isUserDecor) return null;
+              return (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Shapes</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      {
+                        shape: 'rectangle',
+                        icon: (
+                          <svg width="24" height="24">
+                            <rect
+                              x="4"
+                              y="4"
+                              width="16"
+                              height="16"
+                              rx="4"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            />
+                          </svg>
+                        ),
+                        label: 'Rectangle',
+                      },
+                      {
+                        shape: 'circle',
+                        icon: (
+                          <svg width="24" height="24">
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="8"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            />
+                          </svg>
+                        ),
+                        label: 'Circle',
+                      },
+                    ].map(({ shape, icon, label }) => (
+                      <button
+                        key={shape}
+                        className={`flex flex-col items-center justify-center px-2 py-2 rounded border border-gray-300 transition-colors
+                          ${images.find((img) => img.id === selectedImageId)?.shape === shape
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-gray-100 hover:bg-blue-100'
+                          }`}
+                        onClick={() => handleShapeSelect(shape as any)}
+                      >
+                        {icon}
+                        <span className="text-xs mt-1">{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+            <div className="mt-6">
+              <h3 className="text-lg font-bold mb-2 text-gray-900">Decors</h3>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {/* Default decors */}
+                {DEFAULT_DECORS.map((decor) => (
+                  <button
+                    key={decor.src}
+                    className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition relative"
+                    title={decor.name}
+                    onClick={() => handleAddDecorToCanvas(decor.src)}
+                    style={{ padding: 2 }}
+                  >
+                    <img src={decor.src} alt={decor.name} className="max-w-full max-h-full object-contain" />
+                  </button>
+                ))}
+                {/* User decors */}
+                {decors.map((decor) => (
+                  <div key={decor._id} className="relative group">
+                    <button
+                      className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition"
+                      title={decor.originalFilename}
+                      onClick={() => handleAddDecorToCanvas(`http://localhost:5001${decor.imageUrl}`)}
+                      style={{ padding: 2 }}
+                    >
+                      <img src={`http://localhost:5001${decor.imageUrl}`} alt={decor.originalFilename} className="max-w-full max-h-full object-contain" />
+                    </button>
+                    <button
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition"
+                      onClick={() => handleDeleteDecor(decor._id)}
+                      title="Delete"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                {decorLoading && <span className="text-xs text-gray-400">Loading...</span>}
+              </div>
+              <input
+                type="file"
+                accept="image/png,image/webp,image/jpeg,image/jpg"
+                onChange={handleDecorUpload}
+                ref={decorInputRef}
+                className="block w-full text-xs border border-gray-300 rounded cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+                style={{ marginTop: 4 }}
+              />
+              <span className="text-xs text-gray-500">PNG/WebP/JPEG only, max 5MB</span>
+            </div>
+            <FramesSection onAddFrame={handleAddFrameToBoard} />
+          </aside>
+        )}
       </main>
       {settingsOpen && (
         <SettingsModal
@@ -1458,6 +1490,14 @@ const Whiteboard: React.FC = () => {
           onClose={() => setSettingsOpen(false)}
           showPasswordInput={showPasswordInput}
           setShowPasswordInput={setShowPasswordInput}
+        />
+      )}
+      {/* Share Modal: only for owner, not for sharePermission 'edit' */}
+      {selectedBoard && isOwner && sharePermission !== 'view' && (
+        <ShareModal
+          boardId={selectedBoard._id}
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
         />
       )}
     </div>
