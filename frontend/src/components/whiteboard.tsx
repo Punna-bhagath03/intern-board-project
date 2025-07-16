@@ -730,6 +730,55 @@ const Whiteboard: React.FC = () => {
   // Add state to control password update visibility
   const [showPasswordInput, setShowPasswordInput] = useState(false);
 
+  // 1. Add state for board refresh
+  const [showRefresh, setShowRefresh] = useState(false);
+  const [lastBoardHash, setLastBoardHash] = useState<string | null>(null);
+
+  // 2. Utility to hash board content for change detection
+  function hashBoardContent(content: any) {
+    return JSON.stringify(content);
+  }
+
+  // 3. Poll for board changes for both owner and editors
+  useEffect(() => {
+    if (!selectedBoard) return;
+    // Only poll if owner or edit permission (not view-only)
+    if (sharePermission === 'view') return;
+    const interval = setInterval(async () => {
+      try {
+        const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+        if (shareToken) headers['x-share-token'] = shareToken;
+        const res = await axios.get(`${API_URL}/boards/${selectedBoard._id}`, { headers });
+        const newHash = hashBoardContent(res.data.content);
+        if (lastBoardHash && newHash !== lastBoardHash) {
+          setShowRefresh(true);
+        }
+      } catch {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [selectedBoard, sharePermission, token, shareToken, lastBoardHash]);
+
+  // 4. Set initial board hash when board loads
+  useEffect(() => {
+    if (selectedBoard) {
+      setLastBoardHash(hashBoardContent(selectedBoard.content));
+      setShowRefresh(false);
+    }
+  }, [selectedBoard]);
+
+  // 5. Refresh handler
+  const handleRefreshBoard = async () => {
+    if (!selectedBoard) return;
+    try {
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+      if (shareToken) headers['x-share-token'] = shareToken;
+      const res = await axios.get(`${API_URL}/boards/${selectedBoard._id}`, { headers });
+      loadBoardContent(res.data);
+      setLastBoardHash(hashBoardContent(res.data.content));
+      setShowRefresh(false);
+    } catch {}
+  };
+
   // Fetch userId and avatar on mount
   useEffect(() => {
     if (!token) return;
@@ -882,17 +931,55 @@ const Whiteboard: React.FC = () => {
   // Determine if the current user is the owner
   const isOwner = selectedBoard && selectedBoard.user === userId;
 
+  const [ownerUsername, setOwnerUsername] = useState<string | null>(null);
+  // 1. Add error state for owner username fetch
+  const [ownerUsernameError, setOwnerUsernameError] = useState(false);
+
+  // Fetch the owner's username if not owner
+  useEffect(() => {
+    if (selectedBoard && selectedBoard.user && selectedBoard.user !== userId) {
+      axios.get(`${API_URL}/users/${selectedBoard.user}`)
+        .then(res => {
+          setOwnerUsername(res.data.username);
+          setOwnerUsernameError(false);
+        })
+        .catch(() => {
+          setOwnerUsername(null);
+          setOwnerUsernameError(true);
+        });
+    } else {
+      setOwnerUsername(null);
+      setOwnerUsernameError(false);
+    }
+  }, [selectedBoard, userId]);
+
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
       {/* Header */}
       <header className="w-full py-6 bg-gradient-to-r from-gray-900 via-gray-800 to-black shadow text-center relative">
         <h1 className="text-3xl font-extrabold text-white tracking-wide drop-shadow">
           {selectedBoard ?
-            (isOwner ? selectedBoard.name : `${selectedBoard.name} (by ${selectedBoard.user})`)
+            (isOwner
+              ? selectedBoard.name
+              : `${selectedBoard.name} (by ${ownerUsernameError ? 'Unknown' : (ownerUsername || '...')})`)
             : 'Canvas Board'}
         </h1>
+        {/* Show badges */}
         {sharePermission === 'view' && (
           <span className="absolute left-4 top-4 bg-yellow-400 text-gray-900 font-bold px-3 py-1 rounded-full shadow">Read Only</span>
+        )}
+        {!isOwner && sharePermission === 'edit' && (
+          <span className="absolute left-4 top-4 bg-blue-400 text-white font-bold px-3 py-1 rounded-full shadow">Edit Mode</span>
+        )}
+        {/* Refresh button in edit/owner mode if board changed */}
+        {showRefresh && sharePermission !== 'view' && (
+          <button
+            onClick={handleRefreshBoard}
+            className="absolute left-4 top-16 bg-green-500 hover:bg-green-600 text-white font-bold px-4 py-1 rounded-full shadow border border-green-700 transition-colors z-20"
+            style={{ minWidth: 100 }}
+          >
+            Refresh Board
+          </button>
         )}
         <div className="absolute top-4 right-4 flex items-center gap-4">
           <button
@@ -924,553 +1011,555 @@ const Whiteboard: React.FC = () => {
           )}
         </div>
       </header>
-      {/* Board List and Create: only for owner, not for share links */}
-      {isOwner && sharePermission !== 'view' && (
-        <div className="w-full flex flex-col md:flex-row items-center gap-2 px-8 mt-4">
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="font-semibold text-gray-900 flex items-center">
-              Boards:
-              {loadingBoards && (
-                <span style={{ ...spinnerStyle, opacity: loadingBoards ? 1 : 0 }} aria-label="Loading" />
-              )}
-            </span>
-            {!loadingBoards && boards.map((board) => (
-              <div
-                key={board._id}
-                className="relative flex items-center mr-2 mb-2"
-                onClick={() => handleSelectBoard(board)}
-                role="button"
-                tabIndex={0}
-                style={{ cursor: 'pointer' }}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleSelectBoard(board); }}
-              >
-                <div
-                  className={`group flex items-center rounded-full border text-sm font-semibold transition-colors shadow-sm px-3 py-1 pr-2 min-w-0 max-w-full
-                    ${selectedBoard?._id === board._id
-                      ? 'bg-gray-900 text-white border-gray-900'
-                      : 'bg-white/80 text-gray-700 border-gray-300 hover:bg-gray-200 hover:text-gray-900'}
-                  `}
-                  style={{ minWidth: 0, maxWidth: 220 }}
-                >
-                  {/* Board name or input */}
-                  <span
-                    className={`truncate max-w-[110px] mr-2 ${selectedBoard?._id === board._id ? 'text-white' : 'text-gray-900'} cursor-pointer`}
-                    title={board.name}
+      {/* Loading spinner for board area */}
+      {loadingBoards ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : selectedBoard ? (
+        <>
+          {/* Board List and Create: only for owner, not for share links */}
+          {isOwner && sharePermission !== 'view' && (
+            <div className="w-full flex flex-col md:flex-row items-center gap-2 px-8 mt-4">
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="font-semibold text-gray-900 flex items-center">
+                  Boards:
+                  {loadingBoards && (
+                    <span style={{ ...spinnerStyle, opacity: loadingBoards ? 1 : 0 }} aria-label="Loading" />
+                  )}
+                </span>
+                {!loadingBoards && boards.map((board) => (
+                  <div
+                    key={board._id}
+                    className="relative flex items-center mr-2 mb-2"
+                    onClick={() => handleSelectBoard(board)}
+                    role="button"
+                    tabIndex={0}
+                    style={{ cursor: 'pointer' }}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleSelectBoard(board); }}
                   >
-                    {board._id === selectedBoard?._id ? selectedBoard?.name : board.name}
-                  </span>
-                  {/* Edit icon: only for owner */}
-                  {editingBoardId !== board._id && board.user === userId && (
-                    <button
-                      onClick={e => { e.stopPropagation(); startEditingBoard(board); }}
-                      className={`flex items-center justify-center w-7 h-7 rounded-full transition-colors duration-150 ml-0.5 mr-1
-                        ${selectedBoard?._id === board._id ? 'text-white hover:bg-gray-800 hover:text-blue-200' : 'text-gray-500 hover:bg-gray-200 hover:text-blue-700'}`}
-                      title="Edit board name"
-                      type="button"
-                      tabIndex={-1}
-                    >
-                      <PencilIcon className="w-4 h-4" />
-                    </button>
-                  )}
-                  {/* Delete icon: only for owner */}
-                  {board.user === userId && (
-                    <button
-                      onClick={e => { e.stopPropagation(); handleDeleteBoard(board._id); }}
-                      className={`flex items-center justify-center w-7 h-7 rounded-full transition-colors duration-150
+                    <div
+                      className={`group flex items-center rounded-full border text-sm font-semibold transition-colors shadow-sm px-3 py-1 pr-2 min-w-0 max-w-full
                         ${selectedBoard?._id === board._id
-                          ? 'text-white hover:bg-red-600 hover:text-white'
-                          : 'text-gray-500 hover:bg-red-500 hover:text-white'}`}
-                      title="Delete board"
-                      aria-label="Delete board"
-                      type="button"
-                      tabIndex={-1}
-                      style={{ fontSize: '1.1rem', lineHeight: 1 }}
+                          ? 'bg-gray-900 text-white border-gray-900'
+                          : 'bg-white/80 text-gray-700 border-gray-300 hover:bg-gray-200 hover:text-gray-900'}
+                      `}
+                      style={{ minWidth: 0, maxWidth: 220 }}
                     >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
+                      {/* Board name or input */}
+                      <span
+                        className={`truncate max-w-[110px] mr-2 ${selectedBoard?._id === board._id ? 'text-white' : 'text-gray-900'} cursor-pointer`}
+                        title={board.name}
+                      >
+                        {board._id === selectedBoard?._id ? selectedBoard?.name : board.name}
+                      </span>
+                      {/* Edit icon: only for owner */}
+                      {editingBoardId !== board._id && board.user === userId && (
+                        <button
+                          onClick={e => { e.stopPropagation(); startEditingBoard(board); }}
+                          className={`flex items-center justify-center w-7 h-7 rounded-full transition-colors duration-150 ml-0.5 mr-1
+                            ${selectedBoard?._id === board._id ? 'text-white hover:bg-gray-800 hover:text-blue-200' : 'text-gray-500 hover:bg-gray-200 hover:text-blue-700'}`}
+                          title="Edit board name"
+                          type="button"
+                          tabIndex={-1}
+                        >
+                          <PencilIcon className="w-4 h-4" />
+                        </button>
+                      )}
+                      {/* Delete icon: only for owner */}
+                      {board.user === userId && (
+                        <button
+                          onClick={e => { e.stopPropagation(); handleDeleteBoard(board._id); }}
+                          className={`flex items-center justify-center w-7 h-7 rounded-full transition-colors duration-150
+                            ${selectedBoard?._id === board._id
+                              ? 'text-white hover:bg-red-600 hover:text-white'
+                              : 'text-gray-500 hover:bg-red-500 hover:text-white'}`}
+                          title="Delete board"
+                          aria-label="Delete board"
+                          type="button"
+                          tabIndex={-1}
+                          style={{ fontSize: '1.1rem', lineHeight: 1 }}
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          {/* Disable create new board for sharePermission 'edit' */}
-          {sharePermission !== 'edit' && (
-            <div className="flex gap-2 items-center ml-auto">
-              <input
-                type="text"
-                value={newBoardName}
-                onChange={(e) => setNewBoardName(e.target.value)}
-                placeholder="New board name"
-                className="p-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white text-gray-900 placeholder-gray-400 shadow-sm"
-              />
+              {/* Disable create new board for sharePermission 'edit' */}
+              {sharePermission !== 'edit' && (
+                <div className="flex gap-2 items-center ml-auto">
+                  <input
+                    type="text"
+                    value={newBoardName}
+                    onChange={(e) => setNewBoardName(e.target.value)}
+                    placeholder="New board name"
+                    className="p-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white text-gray-900 placeholder-gray-400 shadow-sm"
+                  />
+                  <button
+                    onClick={handleCreateBoard}
+                    className="bg-white hover:bg-gray-200 text-gray-900 font-bold px-4 py-2 rounded-full shadow transition border border-gray-300"
+                  >
+                    + Create
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          {/* Error and Saving */}
+          {(error || saving) && (
+            <div className="w-full flex justify-center mt-2">
+              {error && <span className="text-red-500 font-medium">{error}</span>}
+              {saving && <span className="text-blue-500 ml-4">Saving...</span>}
+            </div>
+          )}
+          {/* Reset Button Row */}
+          {sharePermission !== 'view' && (
+            <div className="w-full flex justify-end gap-2 px-8 mt-2">
               <button
-                onClick={handleCreateBoard}
-                className="bg-white hover:bg-gray-200 text-gray-900 font-bold px-4 py-2 rounded-full shadow transition border border-gray-300"
+                onClick={saveBoardContent}
+                className="flex items-center gap-2 bg-[#23272f] hover:bg-[#2d323c] text-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-700"
+                disabled={sharePermission === 'view' || saving}
               >
-                + Create
+                <SaveIcon className="w-5 h-5" />
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={() => handleDownloadBoard('png')}
+                className="flex items-center gap-2 bg-[#23272f] hover:bg-[#2d323c] text-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-700"
+                title="Download board as image"
+                disabled={sharePermission === 'view'}
+              >
+                <DownloadIcon className="w-5 h-5" />
+                Download
+              </button>
+              <button
+                onClick={handleReset}
+                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-full shadow transition"
+                disabled={sharePermission === 'view'}
+              >
+                <TrashIcon className="w-5 h-5" />
+                Reset
               </button>
             </div>
           )}
-        </div>
-      )}
-      {/* Error and Saving */}
-      {(error || saving) && (
-        <div className="w-full flex justify-center mt-2">
-          {error && <span className="text-red-500 font-medium">{error}</span>}
-          {saving && <span className="text-blue-500 ml-4">Saving...</span>}
-        </div>
-      )}
-      {/* Reset Button Row */}
-      {sharePermission !== 'view' && (
-        <div className="w-full flex justify-end gap-2 px-8 mt-2">
-          <button
-            onClick={saveBoardContent}
-            className="flex items-center gap-2 bg-[#23272f] hover:bg-[#2d323c] text-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-700"
-            disabled={sharePermission === 'view' || saving}
-          >
-            <SaveIcon className="w-5 h-5" />
-            {saving ? 'Saving...' : 'Save'}
-          </button>
-          <button
-            onClick={() => handleDownloadBoard('png')}
-            className="flex items-center gap-2 bg-[#23272f] hover:bg-[#2d323c] text-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-700"
-            title="Download board as image"
-            disabled={sharePermission === 'view'}
-          >
-            <DownloadIcon className="w-5 h-5" />
-            Download
-          </button>
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-full shadow transition"
-            disabled={sharePermission === 'view'}
-          >
-            <TrashIcon className="w-5 h-5" />
-            Reset
-          </button>
-        </div>
-      )}
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col md:flex-row gap-4 p-4 md:p-8 overflow-hidden">
-        {/* Board Area */}
-        <section className="flex-1 flex items-center justify-center overflow-auto">
-          <div className="relative w-full h-full max-w-full max-h-full min-w-[300px] min-h-[300px] bg-gradient-to-br from-gray-100/90 via-gray-200/80 to-white/90 rounded-2xl shadow-2xl p-4 flex items-center justify-center overflow-auto backdrop-blur-md">
-            <Rnd
-              ref={setBoardRef}
-              size={{ width: widthNum, height: heightNum }}
-              position={{ x: 0, y: 0 }}
-              disableDragging={sharePermission === 'view'}
-              enableResizing={sharePermission !== 'view' ? { bottom: true, right: true, bottomRight: true } : {}}
-              onResizeStop={(e, direction, ref) => {
-                if (sharePermission === 'view') return;
-                setBoardSize({ width: ref.offsetWidth.toString(), height: ref.offsetHeight.toString() });
-              }}
-              minWidth={300}
-              minHeight={300}
-              bounds="parent"
-              className="relative bg-transparent overflow-hidden rounded-lg border border-gray-200 shadow-md"
-            >
-              {backgroundImage && (
-                <img
-                  src={backgroundImage.startsWith('blob:') ? '' : backgroundImage}
-                  alt="Background"
-                  className="absolute top-0 left-0 w-full h-full object-fill z-0 rounded-lg"
-                  style={{ objectFit: 'fill', objectPosition: 'center' }}
-                />
-              )}
-              {/* Render frames first (background) */}
-              {canvasFrames.map((frame) => (
-                <Rnd
-                  key={frame.id}
-                  size={{ width: frame.width, height: frame.height }}
-                  position={{ x: frame.x, y: frame.y }}
-                  onDragStop={(e, d) => {
-                    setCanvasFrames((prev) =>
-                      prev.map((f) =>
-                        f.id === frame.id ? { ...f, x: d.x, y: d.y } : f
-                      )
-                    );
-                  }}
-                  onResizeStop={(e, direction, ref, delta, position) => {
-                    setCanvasFrames((prev) =>
-                      prev.map((f) =>
-                        f.id === frame.id
-                          ? {
-                              ...f,
-                              width: parseInt(ref.style.width, 10),
-                              height: parseInt(ref.style.height, 10),
-                              x: position.x,
-                              y: position.y,
-                            }
-                          : f
-                      )
-                    );
-                  }}
-                  bounds="parent"
-                  minWidth={100}
-                  minHeight={100}
-                  className="absolute"
-                  style={{ zIndex: 0 }} // Ensure frame Rnd is at the lowest z-index
-                >
-                  <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-                    {/* Delete button for frame */}
-                    <button
-                      onClick={() => setCanvasFrames((prev) => prev.filter((f) => f.id !== frame.id))}
-                      style={{
-                        position: 'absolute',
-                        top: 4,
-                        right: 4,
-                        zIndex: 1,
-                        background: 'white',
-                        borderRadius: '50%',
-                        border: '1px solid #ccc',
-                        width: 24,
-                        height: 24,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-                        cursor: 'pointer',
-                      }}
-                      title="Delete Frame"
-                    >
-                      <span style={{ color: '#e53e3e', fontWeight: 'bold', fontSize: 16 }}>&times;</span>
-                    </button>
-                    {/* Centered, slightly smaller image or upload area */}
-                    {frame.imageSrc ? (
-                      <div
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          overflow: 'hidden',
-                          borderRadius: 8,
-                          background: 'transparent',
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          zIndex: 0,
-                        }}
-                      >
-                        <img
-                          src={frame.imageSrc}
-                          alt="Framed"
-                          style={{
-                            width: '85%',
-                            height: '85%',
-                            objectFit: 'contain',
-                            display: 'block',
-                            borderRadius: 8,
-                            zIndex: 0,
-                            background: 'white',
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <label
-                        style={{
-                          position: 'absolute',
-                          top: '50%',
-                          left: '50%',
-                          width: '85%',
-                          height: '85%',
-                          transform: 'translate(-50%, -50%)',
-                          zIndex: 0,
-                          background: 'transparent',
-                          margin: 0,
-                          padding: 0,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          border: '2px dashed #ccc',
-                          boxSizing: 'border-box',
-                          borderRadius: 8,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <span className="text-xs text-gray-700">Upload Image</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: 'none' }}
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              handleFrameImageUpload(frame.id, e.target.files[0]);
-                            }
-                          }}
-                        />
-                      </label>
+          {/* Main Content */}
+          <main className="flex-1 flex flex-col md:flex-row gap-4 p-4 md:p-8 overflow-hidden">
+            {/* Board Area and Sidebar as siblings in a flex row */}
+            <div className="flex flex-1 flex-row gap-4 w-full">
+              <section className="flex-1 flex items-center justify-center overflow-auto">
+                <div className="relative w-full h-full max-w-full max-h-full min-w-[300px] min-h-[300px] bg-gradient-to-br from-gray-100/90 via-gray-200/80 to-white/90 rounded-2xl shadow-2xl p-4 flex items-center justify-center overflow-auto backdrop-blur-md">
+                  <Rnd
+                    ref={setBoardRef}
+                    size={{ width: widthNum, height: heightNum }}
+                    position={{ x: 0, y: 0 }}
+                    disableDragging={true}
+                    enableResizing={sharePermission !== 'view' ? { bottom: true, right: true, bottomRight: true } : {}}
+                    onResizeStop={(e, direction, ref) => {
+                      if (sharePermission === 'view') return;
+                      setBoardSize({ width: ref.offsetWidth.toString(), height: ref.offsetHeight.toString() });
+                    }}
+                    minWidth={300}
+                    minHeight={300}
+                    bounds="parent"
+                    className="relative bg-transparent overflow-hidden rounded-lg border border-gray-200 shadow-md"
+                  >
+                    {backgroundImage && backgroundImage.trim() !== '' && !backgroundImage.startsWith('blob:') && (
+                      <img
+                        src={backgroundImage}
+                        alt="Background"
+                        className="absolute top-0 left-0 w-full h-full object-fill z-0 rounded-lg"
+                        style={{ objectFit: 'fill', objectPosition: 'center' }}
+                      />
                     )}
-                    {/* Frame border always on top of its own image, but below all images/decors */}
-                    <img
-                      src={frame.frameSrc}
-                      alt="Frame"
-                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none' }}
+                    {/* Render frames first (background) */}
+                    {canvasFrames.map((frame) => (
+                      <Rnd
+                        key={frame.id}
+                        size={{ width: frame.width, height: frame.height }}
+                        position={{ x: frame.x, y: frame.y }}
+                        onDragStop={(e, d) => {
+                          setCanvasFrames((prev) =>
+                            prev.map((f) =>
+                              f.id === frame.id ? { ...f, x: d.x, y: d.y } : f
+                            )
+                          );
+                        }}
+                        onResizeStop={(e, direction, ref, delta, position) => {
+                          setCanvasFrames((prev) =>
+                            prev.map((f) =>
+                              f.id === frame.id
+                                ? {
+                                    ...f,
+                                    width: parseInt(ref.style.width, 10),
+                                    height: parseInt(ref.style.height, 10),
+                                    x: position.x,
+                                    y: position.y,
+                                  }
+                                : f
+                            )
+                          );
+                        }}
+                        bounds="parent"
+                        minWidth={100}
+                        minHeight={100}
+                        className="absolute"
+                        style={{ zIndex: 0 }}
+                      >
+                        <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+                          {/* Delete button for frame */}
+                          {sharePermission !== 'view' && (
+                            <button
+                              onClick={() => setCanvasFrames((prev) => prev.filter((f) => f.id !== frame.id))}
+                              style={{
+                                position: 'absolute',
+                                top: 4,
+                                right: 4,
+                                zIndex: 1,
+                                background: 'white',
+                                borderRadius: '50%',
+                                border: '1px solid #ccc',
+                                width: 24,
+                                height: 24,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+                                cursor: 'pointer',
+                              }}
+                              title="Delete Frame"
+                            >
+                              <span style={{ color: '#e53e3e', fontWeight: 'bold', fontSize: 16 }}>&times;</span>
+                            </button>
+                          )}
+                          {/* Centered, slightly smaller image or upload area */}
+                          {frame.imageSrc ? (
+                            <div
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                                borderRadius: 8,
+                                background: 'transparent',
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                zIndex: 0,
+                              }}
+                            >
+                              <img
+                                src={frame.imageSrc}
+                                alt="Framed"
+                                style={{
+                                  width: '85%',
+                                  height: '85%',
+                                  objectFit: 'contain',
+                                  display: 'block',
+                                  borderRadius: 8,
+                                  zIndex: 0,
+                                  background: 'white',
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <label
+                              style={{
+                                position: 'absolute',
+                                top: '50%',
+                                left: '50%',
+                                width: '85%',
+                                height: '85%',
+                                transform: 'translate(-50%, -50%)',
+                                zIndex: 0,
+                                background: 'transparent',
+                                margin: 0,
+                                padding: 0,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: '2px dashed #ccc',
+                                boxSizing: 'border-box',
+                                borderRadius: 8,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <span className="text-xs text-gray-700">Upload Image</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                  if (e.target.files && e.target.files[0]) {
+                                    handleFrameImageUpload(frame.id, e.target.files[0]);
+                                  }
+                                }}
+                              />
+                            </label>
+                          )}
+                          {/* Frame border always on top of its own image, but below all images/decors */}
+                          <img
+                            src={frame.frameSrc}
+                            alt="Frame"
+                            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none' }}
+                          />
+                        </div>
+                      </Rnd>
+                    ))}
+                    {/* Then render images/decors (foreground) */}
+                    {images.map((img, idx) => {
+                      const isHovered = hoveredImageId === img.id;
+                      const shape = img.shape || 'rectangle';
+                      return (
+                        <Rnd
+                          key={img.id}
+                          size={{ width: img.width, height: img.height }}
+                          position={{ x: img.x, y: img.y }}
+                          onDragStop={(e, d) => {
+                            setImages((prev) =>
+                              prev.map((im, i) =>
+                                i === idx ? { ...im, x: d.x, y: d.y } : im
+                              )
+                            );
+                          }}
+                          onResizeStop={(e, direction, ref, delta, position) => {
+                            setImages((prev) =>
+                              prev.map((im, i) =>
+                                i === idx
+                                  ? {
+                                      ...im,
+                                      width: parseInt(ref.style.width, 10),
+                                      height: parseInt(ref.style.height, 10),
+                                      x: position.x,
+                                      y: position.y,
+                                    }
+                                  : im
+                              )
+                            );
+                          }}
+                          bounds="parent"
+                          minWidth={50}
+                          minHeight={50}
+                          className="z-10"
+                        >
+                          <div
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              position: 'relative',
+                              cursor: 'pointer',
+                            }}
+                            className="group"
+                            onMouseEnter={() => setHoveredImageId(img.id)}
+                            onMouseLeave={() => setHoveredImageId(null)}
+                          >
+                            {/* Delete button on hover */}
+                            {sharePermission !== 'view' && (
+                              <button
+                                className="absolute top-1 right-1 z-30 bg-white bg-opacity-80 rounded-full p-1 shadow hover:bg-red-500 hover:text-white transition-opacity opacity-0 group-hover:opacity-100"
+                                style={{ fontSize: 16 }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteImage(img.id);
+                                }}
+                                tabIndex={-1}
+                                aria-label="Delete image"
+                              >
+                                &#10005;
+                              </button>
+                            )}
+                            <img
+                              src={img.src}
+                              alt="Draggable"
+                              className={`w-full h-full ${
+                                isHovered ? 'border-2 border-blue-500' : 'border border-transparent'
+                              } ${
+                                shape === 'circle'
+                                  ? 'object-cover clip-circle-img'
+                                  : 'object-fill'
+                              }`}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'fill',
+                                borderRadius: shape === 'circle' ? '50%' : undefined,
+                                imageRendering: 'auto',
+                                display: 'block',
+                                background: 'none',
+                              }}
+                              draggable={false}
+                            />
+                          </div>
+                        </Rnd>
+                      );
+                    })}
+                  </Rnd>
+                  {!validSize && (
+                    <p className="text-red-500 text-xs mt-2 absolute bottom-2 left-2 bg-white bg-opacity-80 px-2 py-1 rounded shadow">
+                      Enter valid width and height ≥ 300
+                    </p>
+                  )}
+                </div>
+              </section>
+              {/* Sidebar Tools: only for owner or edit permission, not for view links */}
+              {(isOwner || sharePermission === 'edit') && sharePermission !== 'view' && (
+                <aside className="w-full md:w-80 min-w-[250px] max-h-[calc(100vh-100px)] overflow-y-auto bg-[#f4f5f7] backdrop-blur-md border border-gray-200 shadow-xl rounded-2xl p-6 space-y-4 flex-shrink-0">
+                  <h2 className="text-xl font-extrabold mb-2 text-gray-900">Tools</h2>
+                  {/* Manual Board Size Inputs */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-semibold text-gray-700">Board Width (px)</label>
+                    <input
+                      type="number"
+                      name="width"
+                      max={2000}
+                      value={boardSize.width}
+                      onChange={handleSizeChange}
+                      className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+                      placeholder="Enter width ≥ 300"
+                    />
+                    <label className="text-sm font-semibold text-gray-700">Board Height (px)</label>
+                    <input
+                      type="number"
+                      name="height"
+                      max={2000}
+                      value={boardSize.height}
+                      onChange={handleSizeChange}
+                      className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+                      placeholder="Enter height ≥ 300"
                     />
                   </div>
-                </Rnd>
-              ))}
-              {/* Then render images/decors (foreground) */}
-              {images.map((img, idx) => {
-                const isHovered = hoveredImageId === img.id;
-                const shape = img.shape || 'rectangle';
-                return (
-                  <Rnd
-                    key={img.id}
-                    size={{ width: img.width, height: img.height }}
-                    position={{ x: img.x, y: img.y }}
-                    onDragStop={(e, d) => {
-                      setImages((prev) =>
-                        prev.map((im, i) =>
-                          i === idx ? { ...im, x: d.x, y: d.y } : im
-                        )
-                      );
-                    }}
-                    onResizeStop={(e, direction, ref, delta, position) => {
-                      setImages((prev) =>
-                        prev.map((im, i) =>
-                          i === idx
-                            ? {
-                                ...im,
-                                width: parseInt(ref.style.width, 10),
-                                height: parseInt(ref.style.height, 10),
-                                x: position.x,
-                                y: position.y,
-                              }
-                            : im
-                        )
-                      );
-                    }}
-                    bounds="parent"
-                    minWidth={50}
-                    minHeight={50}
-                    className="z-10"
-                  >
-                    <div
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        position: 'relative',
-                        cursor: 'pointer',
-                      }}
-                      className="group"
-                      onMouseEnter={() => setHoveredImageId(img.id)}
-                      onMouseLeave={() => setHoveredImageId(null)}
-                    >
-                      {/* Delete button on hover */}
-                      <button
-                        className="absolute top-1 right-1 z-30 bg-white bg-opacity-80 rounded-full p-1 shadow hover:bg-red-500 hover:text-white transition-opacity opacity-0 group-hover:opacity-100"
-                        style={{ fontSize: 16 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteImage(img.id);
-                        }}
-                        tabIndex={-1}
-                        aria-label="Delete image"
-                      >
-                        &#10005;
-                      </button>
-                      <img
-                        src={img.src}
-                        alt="Draggable"
-                        className={`w-full h-full ${
-                          isHovered ? 'border-2 border-blue-500' : 'border border-transparent'
-                        } ${
-                          shape === 'circle'
-                            ? 'object-cover clip-circle-img'
-                            : 'object-fill'
-                        }`}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'fill',
-                          borderRadius: shape === 'circle' ? '50%' : undefined,
-                          imageRendering: 'auto',
-                          display: 'block',
-                          background: 'none',
-                        }}
-                        draggable={false}
-                      />
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      Upload Background
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleBackgroundUpload}
+                      ref={backgroundInputRef}
+                      className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-semibold text-gray-700">Add Images</label>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      ref={addImagesInputRef}
+                      className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+                    />
+                  </div>
+                  {/* Shapes section - only for image items, not decor items */}
+                  {selectedImageId && (() => {
+                    const selectedImg = images.find(img => img.id === selectedImageId);
+                    const isDefaultDecor = selectedImg && DEFAULT_DECORS.some(decor => decor.src === selectedImg.src);
+                    const isUserDecor = selectedImg && decors.some(decor => `http://localhost:5001${decor.imageUrl}` === selectedImg.src);
+                    if (!selectedImg || isDefaultDecor || isUserDecor) return null;
+                    return (
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Shapes</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            {
+                              shape: 'rectangle',
+                              icon: (
+                                <svg width="24" height="24">
+                                  <rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" strokeWidth="2" />
+                                </svg>
+                              ),
+                              label: 'Rectangle',
+                            },
+                            {
+                              shape: 'circle',
+                              icon: (
+                                <svg width="24" height="24">
+                                  <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="2" />
+                                </svg>
+                              ),
+                              label: 'Circle',
+                            },
+                          ].map(({ shape, icon, label }) => (
+                            <button
+                              key={shape}
+                              className={`flex flex-col items-center justify-center px-2 py-2 rounded border border-gray-300 transition-colors
+                                ${images.find((img) => img.id === selectedImageId)?.shape === shape
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-gray-100 hover:bg-blue-100'
+                                }`}
+                              onClick={() => handleShapeSelect(shape as any)}
+                            >
+                              {icon}
+                              <span className="text-xs mt-1">{label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <div className="mt-6">
+                    <h3 className="text-lg font-bold mb-2 text-gray-900">Decors</h3>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {/* Default decors */}
+                      {DEFAULT_DECORS.map((decor) => (
+                        <button
+                          key={decor.src}
+                          className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition relative"
+                          title={decor.name}
+                          onClick={() => handleAddDecorToCanvas(decor.src)}
+                          style={{ padding: 2 }}
+                        >
+                          <img src={decor.src} alt={decor.name} className="max-w-full max-h-full object-contain" />
+                        </button>
+                      ))}
+                      {/* User decors */}
+                      {decors.map((decor) => (
+                        <div key={decor._id} className="relative group">
+                          <button
+                            className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition"
+                            title={decor.originalFilename}
+                            onClick={() => handleAddDecorToCanvas(`http://localhost:5001${decor.imageUrl}`)}
+                            style={{ padding: 2 }}
+                          >
+                            <img src={`http://localhost:5001${decor.imageUrl}`} alt={decor.originalFilename} className="max-w-full max-h-full object-contain" />
+                          </button>
+                          {sharePermission !== 'view' && (
+                            <button
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition"
+                              onClick={() => handleDeleteDecor(decor._id)}
+                              title="Delete"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {decorLoading && <span className="text-xs text-gray-400">Loading...</span>}
                     </div>
-                  </Rnd>
-                );
-              })}
-            </Rnd>
-            {!validSize && (
-              <p className="text-red-500 text-xs mt-2 absolute bottom-2 left-2 bg-white bg-opacity-80 px-2 py-1 rounded shadow">
-                Enter valid width and height ≥ 300
-              </p>
-            )}
-          </div>
-        </section>
-        {/* Sidebar Tools: only for owner or edit permission, not for view links */}
-        {(isOwner || sharePermission === 'edit') && sharePermission !== 'view' && (
-          <aside className="w-full md:w-80 min-w-[250px] max-h-[calc(100vh-100px)] overflow-y-auto bg-[#f4f5f7] backdrop-blur-md border border-gray-200 shadow-xl rounded-2xl p-6 space-y-4 flex-shrink-0">
-            <h2 className="text-xl font-extrabold mb-2 text-gray-900">Tools</h2>
-            {/* Manual Board Size Inputs */}
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-gray-700">Board Width (px)</label>
-              <input
-                type="number"
-                name="width"
-                max={2000}
-                value={boardSize.width}
-                onChange={handleSizeChange}
-                className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-                placeholder="Enter width ≥ 300"
-              />
-              <label className="text-sm font-semibold text-gray-700">Board Height (px)</label>
-              <input
-                type="number"
-                name="height"
-                max={2000}
-                value={boardSize.height}
-                onChange={handleSizeChange}
-                className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-                placeholder="Enter height ≥ 300"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Upload Background
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleBackgroundUpload}
-                ref={backgroundInputRef}
-                className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-gray-700">Add Images</label>
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleImageUpload}
-                ref={addImagesInputRef}
-                className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-              />
-            </div>
-            {/* Shapes section - only for image items, not decor items */}
-            {selectedImageId && (() => {
-              const selectedImg = images.find(img => img.id === selectedImageId);
-              // Only show shapes if the selected image is NOT a decor (not from DEFAULT_DECORS and not a user decor)
-              const isDefaultDecor = selectedImg && DEFAULT_DECORS.some(decor => decor.src === selectedImg.src);
-              const isUserDecor = selectedImg && decors.some(decor => `http://localhost:5001${decor.imageUrl}` === selectedImg.src);
-              if (!selectedImg || isDefaultDecor || isUserDecor) return null;
-              return (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Shapes</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      {
-                        shape: 'rectangle',
-                        icon: (
-                          <svg width="24" height="24">
-                            <rect
-                              x="4"
-                              y="4"
-                              width="16"
-                              height="16"
-                              rx="4"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            />
-                          </svg>
-                        ),
-                        label: 'Rectangle',
-                      },
-                      {
-                        shape: 'circle',
-                        icon: (
-                          <svg width="24" height="24">
-                            <circle
-                              cx="12"
-                              cy="12"
-                              r="8"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            />
-                          </svg>
-                        ),
-                        label: 'Circle',
-                      },
-                    ].map(({ shape, icon, label }) => (
-                      <button
-                        key={shape}
-                        className={`flex flex-col items-center justify-center px-2 py-2 rounded border border-gray-300 transition-colors
-                          ${images.find((img) => img.id === selectedImageId)?.shape === shape
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-gray-100 hover:bg-blue-100'
-                          }`}
-                        onClick={() => handleShapeSelect(shape as any)}
-                      >
-                        {icon}
-                        <span className="text-xs mt-1">{label}</span>
-                      </button>
-                    ))}
+                    <input
+                      type="file"
+                      accept="image/png,image/webp,image/jpeg,image/jpg"
+                      onChange={handleDecorUpload}
+                      ref={decorInputRef}
+                      className="block w-full text-xs border border-gray-300 rounded cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+                      style={{ marginTop: 4 }}
+                    />
+                    <span className="text-xs text-gray-500">PNG/WebP/JPEG only, max 5MB</span>
                   </div>
-                </div>
-              );
-            })()}
-            <div className="mt-6">
-              <h3 className="text-lg font-bold mb-2 text-gray-900">Decors</h3>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {/* Default decors */}
-                {DEFAULT_DECORS.map((decor) => (
-                  <button
-                    key={decor.src}
-                    className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition relative"
-                    title={decor.name}
-                    onClick={() => handleAddDecorToCanvas(decor.src)}
-                    style={{ padding: 2 }}
-                  >
-                    <img src={decor.src} alt={decor.name} className="max-w-full max-h-full object-contain" />
-                  </button>
-                ))}
-                {/* User decors */}
-                {decors.map((decor) => (
-                  <div key={decor._id} className="relative group">
-                    <button
-                      className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition"
-                      title={decor.originalFilename}
-                      onClick={() => handleAddDecorToCanvas(`http://localhost:5001${decor.imageUrl}`)}
-                      style={{ padding: 2 }}
-                    >
-                      <img src={`http://localhost:5001${decor.imageUrl}`} alt={decor.originalFilename} className="max-w-full max-h-full object-contain" />
-                    </button>
-                    <button
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition"
-                      onClick={() => handleDeleteDecor(decor._id)}
-                      title="Delete"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                {decorLoading && <span className="text-xs text-gray-400">Loading...</span>}
-              </div>
-              <input
-                type="file"
-                accept="image/png,image/webp,image/jpeg,image/jpg"
-                onChange={handleDecorUpload}
-                ref={decorInputRef}
-                className="block w-full text-xs border border-gray-300 rounded cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-                style={{ marginTop: 4 }}
-              />
-              <span className="text-xs text-gray-500">PNG/WebP/JPEG only, max 5MB</span>
+                  <FramesSection onAddFrame={handleAddFrameToBoard} />
+                </aside>
+              )}
             </div>
-            <FramesSection onAddFrame={handleAddFrameToBoard} />
-          </aside>
-        )}
-      </main>
+          </main>
+        </>
+      ) : (
+        <div className="flex-1 flex items-center justify-center text-gray-500 text-xl">No board found</div>
+      )}
       {settingsOpen && (
         <SettingsModal
           settingsOpen={settingsOpen}
