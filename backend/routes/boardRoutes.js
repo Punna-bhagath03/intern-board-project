@@ -125,8 +125,15 @@ router.put('/boards/:id', authenticateToken, async (req, res) => {
     const updateFields = {};
     if (content) updateFields.content = content;
     if (name) updateFields.name = name;
+    // Allow owner or collaborator with edit permission
     const board = await Board.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.userId },
+      {
+        _id: req.params.id,
+        $or: [
+          { user: req.user.userId },
+          { 'collaborators.userId': req.user.userId, 'collaborators.permission': 'edit' }
+        ]
+      },
       updateFields,
       { new: true }
     );
