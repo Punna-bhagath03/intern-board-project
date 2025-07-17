@@ -40,6 +40,7 @@ router.get('/users', authenticateToken, isAdminMiddleware, async (req, res) => {
       email: u.email || '',
       status: u.status || 'active',
       role: u.role,
+      plan: u.plan, // <-- Add this line
       createdAt: u.createdAt,
       lastLogin: u.lastLogin,
       loginHistory: u.loginHistory || [],
@@ -85,6 +86,30 @@ router.put('/user/:id/status', authenticateToken, isAdminMiddleware, async (req,
     res.json({ message: `User status updated to ${status}`, user });
   } catch (err) {
     res.status(500).json({ message: 'Failed to update user status' });
+  }
+});
+
+// PUT /api/admin/user/:id/plan-role — Update user's plan and/or role
+router.put('/user/:id/plan-role', authenticateToken, isAdminMiddleware, async (req, res) => {
+  const { plan, role } = req.body;
+  const validPlans = ['Basic', 'Pro', 'Pro+'];
+  const validRoles = ['user', 'admin'];
+  const update = {};
+  if (plan) {
+    if (!validPlans.includes(plan)) return res.status(400).json({ message: 'Invalid plan' });
+    update.plan = plan;
+  }
+  if (role) {
+    if (!validRoles.includes(role)) return res.status(400).json({ message: 'Invalid role' });
+    update.role = role;
+  }
+  if (!plan && !role) return res.status(400).json({ message: 'No plan or role provided' });
+  try {
+    const user = await User.findByIdAndUpdate(req.params.id, update, { new: true, select: '-password' });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ message: 'User updated', user });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update user', error: err.message });
   }
 });
 

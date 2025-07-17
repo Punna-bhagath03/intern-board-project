@@ -12,6 +12,7 @@ import UserAnalytics from './pages/UserAnalytics';
 import AdminBoardView from './pages/AdminBoardView';
 import Users from './pages/Users';
 import UsersBoardsPanel from './pages/UsersBoardsPanel';
+import PlansRoles from './pages/PlansRoles';
 
 function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) {
   const token = localStorage.getItem('token');
@@ -81,6 +82,11 @@ function App() {
         <Route path="/admin/users/boards" element={
           <ProtectedRoute adminOnly={true}>
             <UsersBoardsPanel />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/plans-roles" element={
+          <ProtectedRoute adminOnly={true}>
+            <PlansRoles />
           </ProtectedRoute>
         } />
         <Route path="*" element={<Navigate to="/" replace />} />

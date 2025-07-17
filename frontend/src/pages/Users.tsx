@@ -72,7 +72,15 @@ const Users: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 text-white flex flex-col items-center p-8">
-      <h1 className="text-3xl font-bold mb-8 text-center">User Detail Panel</h1>
+      <div className="w-full max-w-6xl flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold text-center">User Detail Panel</h1>
+        <button
+          onClick={() => navigate('/admin/dashboard')}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          Back to dashboard
+        </button>
+      </div>
       <div className="w-full max-w-6xl bg-gray-900 rounded-2xl shadow-lg p-6 border border-gray-700">
         <div className="mb-6 flex items-center justify-between">
           <input
@@ -120,7 +128,7 @@ const Users: React.FC = () => {
                       </span>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-blue-200">{user.plan || <span className="italic text-gray-500">N/A</span>}</td>
+                  <td className="py-3 px-4 text-blue-200">{user.plan || (user.role === 'admin' ? 'Pro+' : 'Basic')}</td>
                   <td className="py-3 px-4">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : <span className="italic text-gray-500">N/A</span>}</td>
                   <td className="py-3 px-4">{user.lastLogin ? new Date(user.lastLogin).toLocaleString() : <span className="italic text-gray-500">Never</span>}</td>
                   <td className="py-3 px-4 capitalize">{user.role}</td>

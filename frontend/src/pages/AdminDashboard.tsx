@@ -78,11 +78,11 @@ const AdminDashboard: React.FC = () => {
             <button onClick={() => navigate('/admin/users')} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none">
               <FaUsers /> Users details
             </button>
-            <button onClick={() => navigate('/admin/users')} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none">
+            <button onClick={() => navigate('/admin/users/boards')} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none">
               <FaClipboardList /> User boards
             </button>
-            <button onClick={() => navigate('/admin/users')} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none">
-              <FaUserCog /> User plans
+            <button onClick={() => navigate('/admin/plans-roles')} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none">
+              <FaUserCog /> Plans & Roles
             </button>
             <button onClick={() => navigate('/admin/users')} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none">
               <FaFlag /> Flagged content

@@ -88,6 +88,7 @@ interface SettingsModalProps {
   onClose: () => void;
   showPasswordInput: boolean;
   setShowPasswordInput: (v: boolean) => void;
+  plan: string;
 }
 
 function SettingsModal({
@@ -107,7 +108,8 @@ function SettingsModal({
   passwordInputRef,
   onClose,
   showPasswordInput,
-  setShowPasswordInput
+  setShowPasswordInput,
+  plan
 }: SettingsModalProps) {
   const hasFocusedRef = useRef(false);
   useEffect(() => {
@@ -126,7 +128,18 @@ function SettingsModal({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 relative transform transition-all duration-300 scale-100 opacity-100"
         style={{ minHeight: 400 }}>
         <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold" onClick={onClose} aria-label="Close">&times;</button>
-        <h2 className="text-2xl font-bold mb-4 text-center">User Settings</h2>
+        <h2 className="text-2xl font-bold mb-4 text-center flex items-center justify-center gap-3">
+          User Settings
+          <span
+            className={
+              plan === 'Pro+' ? 'inline-block px-3 py-1 rounded-full bg-blue-600 text-white text-sm font-semibold' :
+              plan === 'Pro' ? 'inline-block px-3 py-1 rounded-full bg-purple-600 text-white text-sm font-semibold' :
+              'inline-block px-3 py-1 rounded-full bg-gray-400 text-white text-sm font-semibold'
+            }
+          >
+            {plan}
+          </span>
+        </h2>
         <form onSubmit={handleSaveSettings} className="space-y-4" autoComplete="off">
           <div>
             <label className="block text-sm font-semibold mb-1">Username</label>
@@ -989,6 +1002,25 @@ const Whiteboard: React.FC = () => {
     }
   }, [token]);
 
+  const [userPlan, setUserPlan] = useState<string>('');
+
+  useEffect(() => {
+    if (!token) return;
+    axios.get('http://localhost:5001/api/users/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => {
+        if (res.data && res.data.plan) {
+          setUserPlan(res.data.plan);
+        } else if (res.data && res.data.role) {
+          setUserPlan(res.data.role === 'admin' ? 'Pro+' : 'Basic');
+        } else {
+          setUserPlan('Basic');
+        }
+      })
+      .catch(() => setUserPlan('Basic'));
+  }, [token]);
+
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
       {/* Header */}
@@ -1625,6 +1657,7 @@ const Whiteboard: React.FC = () => {
           onClose={() => setSettingsOpen(false)}
           showPasswordInput={showPasswordInput}
           setShowPasswordInput={setShowPasswordInput}
+          plan={userPlan}
         />
       )}
       {/* Share Modal: only for owner, not for sharePermission 'edit' */}

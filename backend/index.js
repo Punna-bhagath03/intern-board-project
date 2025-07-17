@@ -132,12 +132,12 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// GET /api/users/me - get current user info (username, avatar, role)
+// GET /api/users/me - get current user info (username, avatar, role, plan)
 app.get('/api/users/me', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json({ username: user.username, avatar: user.avatar, role: user.role });
+    res.json({ username: user.username, avatar: user.avatar, role: user.role, plan: user.plan });
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch user' });
   }
@@ -224,9 +224,9 @@ app.get('/api/users/:id', async (req, res) => {
   }
 });
 
-// PATCH /api/users/:id - update username, password, avatar
+// PATCH /api/users/:id - update username, password, avatar, plan (optional, only allow plan if admin in frontend)
 app.patch('/api/users/:id', upload.single('avatar'), async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, plan } = req.body;
   const userId = req.params.id;
   const update = {};
   if (username) {
@@ -239,6 +239,10 @@ app.patch('/api/users/:id', upload.single('avatar'), async (req, res) => {
     if (password.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters.' });
     update.password = await bcrypt.hash(password, 10);
   }
+  if (plan) {
+    if (!['Basic', 'Pro', 'Pro+'].includes(plan)) return res.status(400).json({ message: 'Invalid plan' });
+    update.plan = plan;
+  }
   if (req.file) {
     // Save avatar path relative to /uploads
     update.avatar = `/uploads/avatars/${req.file.filename}`;
@@ -249,6 +253,7 @@ app.patch('/api/users/:id', upload.single('avatar'), async (req, res) => {
     res.json({
       username: user.username,
       avatar: user.avatar,
+      plan: user.plan,
     });
   } catch (err) {
     res.status(500).json({ message: 'Failed to update user' });
