@@ -195,7 +195,7 @@ const UsersBoardsPanel: React.FC = () => {
                           <td className="py-3 px-4 font-semibold text-blue-200">{board.name}</td>
                           <td className="py-3 px-4">{board.createdAt ? new Date(board.createdAt).toLocaleDateString() : <span className="italic text-gray-500">N/A</span>}</td>
                           <td className="py-3 px-4 capitalize">{selectedUser.role || <span className="italic text-gray-500">N/A</span>}</td>
-                          <td className="py-3 px-4 text-blue-200">{selectedUser.plan || <span className="italic text-gray-500">N/A</span>}</td>
+                          <td className="py-3 px-4 text-blue-200">{selectedUser.plan || (selectedUser.role === 'admin' ? 'Pro+' : 'Basic')}</td>
                           <td className="py-3 px-4 text-center">
                             <button
                               onClick={() => handleDeleteBoard(board._id)}
