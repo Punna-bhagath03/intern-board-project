@@ -4,6 +4,7 @@ import axios from 'axios';
 
 export default function Login() {
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -25,18 +26,28 @@ export default function Login() {
     try {
       const res = await axios.post('http://localhost:5001/login', {
         username,
+        email,
         password,
       });
       if (res.status === 200) {
         const token = res.data.token;
         localStorage.setItem('token', token);
         localStorage.setItem('username', username);
+        // Store user role for admin route protection
+        if (res.data.user && res.data.user.role) {
+          localStorage.setItem('role', res.data.user.role);
+        }
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         // Persistent share-redirect logic
         const redirectPath = localStorage.getItem('share-redirect');
         if (redirectPath) {
           localStorage.removeItem('share-redirect');
           navigate(redirectPath, { replace: true });
+          return;
+        }
+        // If admin, redirect to admin dashboard
+        if (res.data.user && res.data.user.role === 'admin') {
+          navigate('/admin/dashboard', { replace: true });
           return;
         }
         // Fetch user's latest board
@@ -80,6 +91,13 @@ export default function Login() {
           onChange={(e) => setUsername(e.target.value)}
           className="w-full p-2 mb-4 border rounded"
           required
+        />
+        <input
+          type="email"
+          placeholder="Email (optional)"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full p-2 mb-4 border rounded"
         />
         <input
           type="password"
