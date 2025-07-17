@@ -10,6 +10,8 @@ import LandingPage from './pages/LandingPage';
 import AdminDashboard from './pages/AdminDashboard';
 import UserAnalytics from './pages/UserAnalytics';
 import AdminBoardView from './pages/AdminBoardView';
+import Users from './pages/Users';
+import UsersBoardsPanel from './pages/UsersBoardsPanel';
 
 function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) {
   const token = localStorage.getItem('token');
@@ -69,6 +71,16 @@ function App() {
         <Route path="/admin/board/:boardId" element={
           <ProtectedRoute adminOnly={true}>
             <AdminBoardView />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/users" element={
+          <ProtectedRoute adminOnly={true}>
+            <Users />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/users/boards" element={
+          <ProtectedRoute adminOnly={true}>
+            <UsersBoardsPanel />
           </ProtectedRoute>
         } />
         <Route path="*" element={<Navigate to="/" replace />} />

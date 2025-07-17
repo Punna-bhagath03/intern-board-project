@@ -1,6 +1,7 @@
 const express = require('express');
 const User = require('../models/User');
 const Board = require('../models/Board');
+const mongoose = require('mongoose');
 
 // Auth middleware (copy from index.js or import if refactored)
 function authenticateToken(req, res, next) {
@@ -99,13 +100,39 @@ router.delete('/user/:id', authenticateToken, isAdminMiddleware, async (req, res
   }
 });
 
-// 5. GET /api/admin/user/:id/boards — Return all boards owned by the user
+// 5. GET /api/admin/user/:id/boards — Return all boards owned by the user or where they are a collaborator
 router.get('/user/:id/boards', authenticateToken, isAdminMiddleware, async (req, res) => {
   try {
-    const boards = await Board.find({ user: req.params.id });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+    const userId = new mongoose.Types.ObjectId(req.params.id);
+    console.log('Fetching boards for userId:', userId);
+    const boards = await Board.find({
+      $or: [
+        { user: userId },
+        { 'collaborators.userId': userId }
+      ]
+    });
     res.json(boards);
   } catch (err) {
-    res.status(500).json({ message: 'Failed to fetch boards' });
+    console.error('Error fetching boards for user:', req.params.id, err);
+    res.status(500).json({ message: 'Failed to fetch boards', error: err.message, stack: err.stack });
+  }
+});
+
+// GET /api/admin/user/:id/decors — Return all decors owned by the user
+router.get('/user/:id/decors', authenticateToken, isAdminMiddleware, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+    const Decor = require('../models/Decor');
+    const userId = mongoose.Types.ObjectId(req.params.id);
+    const decors = await Decor.find({ user: userId });
+    res.json(decors);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch decors' });
   }
 });
 

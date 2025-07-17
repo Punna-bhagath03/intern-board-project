@@ -33,12 +33,21 @@ export default function Login() {
         const token = res.data.token;
         localStorage.setItem('token', token);
         localStorage.setItem('username', username);
+        // Store user role for admin route protection
+        if (res.data.user && res.data.user.role) {
+          localStorage.setItem('role', res.data.user.role);
+        }
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         // Persistent share-redirect logic
         const redirectPath = localStorage.getItem('share-redirect');
         if (redirectPath) {
           localStorage.removeItem('share-redirect');
           navigate(redirectPath, { replace: true });
+          return;
+        }
+        // If admin, redirect to admin dashboard
+        if (res.data.user && res.data.user.role === 'admin') {
+          navigate('/admin/dashboard', { replace: true });
           return;
         }
         // Fetch user's latest board
