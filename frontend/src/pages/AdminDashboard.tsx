@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { FaUsers, FaUserCheck, FaClipboardList, FaUserCog, FaFlag, FaEnvelope, FaArrowLeft, FaUser } from 'react-icons/fa';
 
 interface User {
   _id: string;
@@ -13,18 +14,10 @@ interface User {
   isOnline?: boolean;
 }
 
-const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  pending: 'bg-yellow-100 text-yellow-700',
-  suspended: 'bg-red-100 text-red-700',
-};
-
 const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -33,167 +26,111 @@ const AdminDashboard: React.FC = () => {
       setError(null);
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get('/api/admin/users', {
+        const url = 'http://localhost:5001/api/admin/users';
+        const res = await axios.get(url, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        setUsers(res.data);
+        setUsers(Array.isArray(res.data) ? res.data : []);
       } catch (err: any) {
         setError(err.response?.data?.message || 'Failed to fetch users');
+        setUsers([]);
       }
       setLoading(false);
     };
     fetchUsers();
   }, []);
 
-  const handleStatusChange = async (user: User, status: 'active' | 'pending' | 'suspended') => {
-    setActionLoading(user._id + '-status');
-    try {
-      const token = localStorage.getItem('token');
-      await axios.put(`/api/admin/user/${user._id}/status`, { status }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setUsers((prev) => prev.map(u => u._id === user._id ? { ...u, status } : u));
-    } catch (err) {
-      // Optionally show error
-    }
-    setActionLoading(null);
+  // Helper to determine if user is online (active)
+  const isUserActive = (user: User) => {
+    if (!user.lastLogin) return false;
+    const last = new Date(user.lastLogin).getTime();
+    const now = Date.now();
+    return now - last < 600000;
   };
 
-  const filteredUsers = users.filter(u =>
-    u.username.toLowerCase().includes(search.toLowerCase()) ||
-    (u.email || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const activeUsersCount = users.filter(isUserActive).length;
+  const totalUsersCount = users.length;
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 text-white flex flex-col">
+      {/* Top Bar */}
+      <div className="flex items-center justify-between px-8 py-4 bg-gray-800 border-b border-gray-700">
+        <div className="flex items-center gap-3">
+          <FaUser className="text-2xl text-blue-400" />
+          <span className="text-xl font-bold tracking-wide">Admin Panel</span>
+        </div>
+        <button
+          onClick={() => {
+            const boardId = localStorage.getItem('defaultBoardId');
+            if (boardId) navigate(`/board/${boardId}`);
+          }}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow focus:outline-none focus:ring-2 focus:ring-blue-400"
+          aria-label="Back to boards"
+        >
+          <FaArrowLeft />
+          Back to boards
+        </button>
+      </div>
+      <div className="flex flex-1">
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r flex flex-col min-h-screen">
-        <div className="p-6 font-bold text-xl border-b">Admin Panel</div>
-        <nav className="flex-1 p-4 space-y-2">
-          <a href="/admin/dashboard" className="block py-2 px-4 rounded bg-gray-100 font-semibold">Dashboard</a>
-          <a href="/admin/dashboard" className="block py-2 px-4 rounded hover:bg-gray-100">Users</a>
-          <a href="#" className="block py-2 px-4 rounded hover:bg-gray-100">Flagged Content</a>
-          <a href="#" className="block py-2 px-4 rounded hover:bg-gray-100">Reports</a>
-          <a href="#" className="block py-2 px-4 rounded hover:bg-gray-100">Settings</a>
+        <aside className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col py-8 px-4 gap-4 min-h-full">
+          <nav className="flex flex-col gap-4">
+            <button onClick={() => navigate('/admin/users')} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none">
+              <FaUsers /> Users details
+            </button>
+            <button onClick={() => navigate('/admin/users')} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none">
+              <FaClipboardList /> User boards
+            </button>
+            <button onClick={() => navigate('/admin/users')} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none">
+              <FaUserCog /> User plans
+            </button>
+            <button onClick={() => navigate('/admin/users')} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none">
+              <FaFlag /> Flagged content
+            </button>
+            <button onClick={() => navigate('/admin/users')} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none">
+              <FaEnvelope /> Email
+            </button>
         </nav>
       </aside>
       {/* Main Content */}
-      <main className="flex-1 p-8">
-        <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
+        <main className="flex-1 flex flex-col gap-8 p-8">
+          {/* Top Row: Active Users & Total Users */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-          {/* Recent Users Card */}
-          <div className="bg-white rounded-xl shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Recent Users</h2>
-              <input
-                type="text"
-                placeholder="Search users..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="border rounded px-3 py-1 text-sm w-48"
-              />
+            <div className="bg-gray-900 rounded-2xl shadow-lg p-8 flex flex-col items-center justify-center border border-gray-700">
+              <div className="text-lg font-semibold mb-2">Current active users</div>
+              <div className="text-4xl font-extrabold text-blue-400 flex items-center gap-2">
+                <FaUserCheck className="text-3xl" />
+                {loading ? <span className="text-base">Loading...</span> : activeUsersCount}
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="py-2 px-3 text-left">Name</th>
-                    <th className="py-2 px-3 text-left">Email</th>
-                    <th className="py-2 px-3 text-left">Status</th>
-                    <th className="py-2 px-3 text-left">Join Date</th>
-                    <th className="py-2 px-3 text-left">Last Login</th>
-                    <th className="py-2 px-3 text-left">Role</th>
-                    <th className="py-2 px-3 text-left">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center py-4 text-gray-400">No users found.</td></tr>
-                  ) : filteredUsers.map(user => (
-                    <tr key={user._id} className="border-b hover:bg-gray-50 transition">
-                      <td className="py-2 px-3 font-semibold">{user.username}</td>
-                      <td className="py-2 px-3">{user.email || <span className="text-gray-400 italic">N/A</span>}</td>
-                      <td className="py-2 px-3">
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${statusColors[user.status || 'active']}`}>{user.status || 'active'}</span>
-                      </td>
-                      <td className="py-2 px-3">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : <span className="text-gray-400 italic">N/A</span>}</td>
-                      <td className="py-2 px-3">{user.lastLogin ? new Date(user.lastLogin).toLocaleString() : <span className="text-gray-400 italic">Never</span>}</td>
-                      <td className="py-2 px-3 capitalize">{user.role}</td>
-                      <td className="py-2 px-3 flex flex-wrap gap-2">
-                        <button
-                          onClick={() => navigate(`/admin/user/${user._id}/analytics`)}
-                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded font-semibold transition"
-                        >
-                          View Boards
-                        </button>
-                        {user.status !== 'active' && (
-                          <button
-                            onClick={() => handleStatusChange(user, 'active')}
-                            disabled={actionLoading === user._id + '-status'}
-                            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded font-semibold transition disabled:opacity-60"
-                          >
-                            Activate
-                          </button>
-                        )}
-                        {user.status !== 'pending' && (
-                          <button
-                            onClick={() => handleStatusChange(user, 'pending')}
-                            disabled={actionLoading === user._id + '-status'}
-                            className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded font-semibold transition disabled:opacity-60"
-                          >
-                            Set Pending
-                          </button>
-                        )}
-                        {user.status !== 'suspended' && (
-                          <button
-                            onClick={() => handleStatusChange(user, 'suspended')}
-                            disabled={actionLoading === user._id + '-status'}
-                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded font-semibold transition disabled:opacity-60"
-                          >
-                            Suspend
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            </div>
+            <div className="bg-gray-900 rounded-2xl shadow-lg p-8 flex flex-col items-center justify-center border border-gray-700">
+              <div className="text-lg font-semibold mb-2">Total users</div>
+              <div className="text-4xl font-extrabold text-blue-400 flex items-center gap-2">
+                <FaUsers className="text-3xl" />
+                {loading ? <span className="text-base">Loading...</span> : totalUsersCount}
+          </div>
             </div>
           </div>
-          {/* Flagged Content Card (placeholder) */}
-          <div className="bg-white rounded-xl shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Flagged Content</h2>
-              <input
-                type="text"
-                placeholder="Search flagged content..."
-                className="border rounded px-3 py-1 text-sm w-48"
-                disabled
-              />
-            </div>
-            <div className="text-gray-400 text-center py-8">No flagged content yet.</div>
-          </div>
+          {/* Plan Details Section */}
+          <div className="bg-gray-900 rounded-2xl shadow-lg p-8 border border-gray-700">
+            <div className="text-lg font-semibold mb-6 text-center">Plan details and users' current plans</div>
+            <div className="flex flex-col md:flex-row gap-8 justify-center items-center">
+              <div className="flex-1 flex flex-col items-center bg-gray-800 rounded-xl p-6 shadow hover:shadow-xl transition">
+                <span className="text-2xl font-bold text-blue-300 mb-2">Basic</span>
+                <span className="text-gray-400">(coming soon)</span>
         </div>
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
-          <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center">
-            <span className="font-bold text-lg mb-2">Manage Users</span>
-            <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-semibold mt-2">Go</button>
+              <div className="flex-1 flex flex-col items-center bg-gray-800 rounded-xl p-6 shadow hover:shadow-xl transition">
+                <span className="text-2xl font-bold text-blue-400 mb-2">Pro</span>
+                <span className="text-gray-400">(coming soon)</span>
           </div>
-          <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center">
-            <span className="font-bold text-lg mb-2">Review Boards</span>
-            <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-semibold mt-2">Go</button>
+              <div className="flex-1 flex flex-col items-center bg-gray-800 rounded-xl p-6 shadow hover:shadow-xl transition">
+                <span className="text-2xl font-bold text-blue-500 mb-2">Pro+</span>
+                <span className="text-gray-400">(coming soon)</span>
           </div>
-          <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center">
-            <span className="font-bold text-lg mb-2">Moderate Content</span>
-            <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-semibold mt-2">Go</button>
           </div>
-          <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center">
-            <span className="font-bold text-lg mb-2">Export Data</span>
-            <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-semibold mt-2">Go</button>
           </div>
+        </main>
         </div>
-      </main>
     </div>
   );
 };

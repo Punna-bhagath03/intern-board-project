@@ -149,9 +149,16 @@ router.delete('/boards/:id', authenticateToken, async (req, res) => {
   try {
     const board = await Board.findById(req.params.id);
     if (!board) return res.status(404).json({ error: "Board not found" });
-    if (board.user.toString() !== req.user.userId) {
+
+    // Fetch the user making the request
+    const User = require('../models/User');
+    const user = await User.findById(req.user.userId);
+
+    // Allow if owner or admin
+    if (board.user.toString() !== req.user.userId && (!user || user.role !== 'admin')) {
       return res.status(403).json({ error: "Unauthorized" });
     }
+
     await Board.findByIdAndDelete(req.params.id);
     res.status(200).json({ message: "Board deleted" });
   } catch (err) {
