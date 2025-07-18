@@ -40,6 +40,7 @@ router.get('/users', authenticateToken, isAdminMiddleware, async (req, res) => {
       email: u.email || '',
       status: u.status || 'active',
       role: u.role,
+      plan: u.plan, // <-- Add this line
       createdAt: u.createdAt,
       lastLogin: u.lastLogin,
       loginHistory: u.loginHistory || [],
@@ -85,6 +86,40 @@ router.put('/user/:id/status', authenticateToken, isAdminMiddleware, async (req,
     res.json({ message: `User status updated to ${status}`, user });
   } catch (err) {
     res.status(500).json({ message: 'Failed to update user status' });
+  }
+});
+
+// PUT /api/admin/user/:id/plan-role — Update user's plan and/or role
+router.put('/user/:id/plan-role', authenticateToken, isAdminMiddleware, async (req, res) => {
+  const { plan, role } = req.body;
+  const validPlans = ['Basic', 'Pro', 'Pro+'];
+  const validRoles = ['user', 'admin'];
+  const update = {};
+  let shouldInvalidate = false;
+  try {
+    const userToUpdate = await User.findById(req.params.id);
+    if (!userToUpdate) return res.status(404).json({ message: 'User not found' });
+    if (userToUpdate.username === 'bhagath') {
+      return res.status(403).json({ message: 'Cannot change role or plan of bhagath. This user is protected.' });
+    }
+    if (plan) {
+      if (!validPlans.includes(plan)) return res.status(400).json({ message: 'Invalid plan' });
+      update.plan = plan;
+      shouldInvalidate = true;
+    }
+    if (role) {
+      if (!validRoles.includes(role)) return res.status(400).json({ message: 'Invalid role' });
+      update.role = role;
+      shouldInvalidate = true;
+    }
+    if (!plan && !role) return res.status(400).json({ message: 'No plan or role provided' });
+    if (shouldInvalidate) {
+      update.$inc = { tokenVersion: 1 };
+    }
+    const user = await User.findByIdAndUpdate(req.params.id, update, { new: true, select: '-password' });
+    res.json({ message: 'User updated', user });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update user', error: err.message });
   }
 });
 
