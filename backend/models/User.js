@@ -29,6 +29,11 @@ const userSchema = new mongoose.Schema({
     enum: ['user', 'admin'],
     default: 'user',
   },
+  plan: {
+    type: String,
+    enum: ['Basic', 'Pro', 'Pro+'],
+    default: 'Basic',
+  },
   lastLogin: {
     type: Date,
     default: null,
@@ -40,6 +45,10 @@ const userSchema = new mongoose.Schema({
       userAgent: { type: String },
     }
   ],
+  tokenVersion: {
+    type: Number,
+    default: 0,
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

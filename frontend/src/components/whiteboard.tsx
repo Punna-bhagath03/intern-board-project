@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Rnd } from 'react-rnd';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import garland1 from '../assets/czNmcy1wcml2YXRlL3Jhd3BpeGVsX2ltYWdlcy93ZWJzaXRlX2NvbnRlbnQvbHIvcGYtczYyLXBvbS0wNzMxLXRlZGR5LWpvZHMucG5n-removebg-preview.png';
@@ -88,6 +88,7 @@ interface SettingsModalProps {
   onClose: () => void;
   showPasswordInput: boolean;
   setShowPasswordInput: (v: boolean) => void;
+  plan: string;
 }
 
 function SettingsModal({
@@ -107,7 +108,8 @@ function SettingsModal({
   passwordInputRef,
   onClose,
   showPasswordInput,
-  setShowPasswordInput
+  setShowPasswordInput,
+  plan
 }: SettingsModalProps) {
   const hasFocusedRef = useRef(false);
   useEffect(() => {
@@ -126,7 +128,18 @@ function SettingsModal({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 relative transform transition-all duration-300 scale-100 opacity-100"
         style={{ minHeight: 400 }}>
         <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold" onClick={onClose} aria-label="Close">&times;</button>
-        <h2 className="text-2xl font-bold mb-4 text-center">User Settings</h2>
+        <h2 className="text-2xl font-bold mb-4 text-center flex items-center justify-center gap-3">
+          User Settings
+          <span
+            className={
+              plan === 'Pro+' ? 'inline-block px-3 py-1 rounded-full bg-blue-600 text-white text-sm font-semibold' :
+              plan === 'Pro' ? 'inline-block px-3 py-1 rounded-full bg-purple-600 text-white text-sm font-semibold' :
+              'inline-block px-3 py-1 rounded-full bg-gray-400 text-white text-sm font-semibold'
+            }
+          >
+            {plan}
+          </span>
+        </h2>
         <form onSubmit={handleSaveSettings} className="space-y-4" autoComplete="off">
           <div>
             <label className="block text-sm font-semibold mb-1">Username</label>
@@ -219,9 +232,7 @@ const Whiteboard: React.FC = () => {
       return;
     }
     setLoadingBoards(true);
-    axios.get(`${API_URL}/boards`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    api.get('/api/boards')
       .then((res) => {
         setBoards(res.data);
         setLoadingBoards(false);
@@ -245,9 +256,7 @@ const Whiteboard: React.FC = () => {
     if (shareToken) {
       headers['x-share-token'] = shareToken;
     }
-    axios.get(`${API_URL}/boards/${id}`, {
-      headers
-    })
+    api.get(`/api/boards/${id}`, { headers })
       .then((res) => {
         setSelectedBoard(res.data);
         loadBoardContent(res.data);
@@ -320,7 +329,7 @@ const Whiteboard: React.FC = () => {
   const handleCreateBoard = async () => {
     if (!newBoardName.trim() || !token) return;
     try {
-      const res = await axios.post(
+      const res = await api.post(
         `${API_URL}/boards`,
         { name: newBoardName, content: {} },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -352,7 +361,7 @@ const Whiteboard: React.FC = () => {
       const formData = new FormData();
       formData.append('image', file);
       try {
-        const res = await axios.post('http://localhost:5001/api/backgrounds', formData, {
+        const res = await api.post('http://localhost:5001/api/backgrounds', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         if (res.data && res.data.url) {
@@ -436,7 +445,7 @@ const Whiteboard: React.FC = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
+    delete api.defaults.headers.common['Authorization'];
     setBoards([]);
     setSelectedBoard(null);
     setNewBoardName('');
@@ -621,9 +630,7 @@ const Whiteboard: React.FC = () => {
       if (!token) return;
       setDecorLoading(true);
       try {
-        const res = await axios.get('http://localhost:5001/api/decors', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await api.get('/api/decors');
         setDecors(res.data);
       } catch (err) {
         // handle error
@@ -640,9 +647,7 @@ const Whiteboard: React.FC = () => {
     try {
       // Find the decor object before deleting
       const decorToDelete = decors.find((d) => d._id === id);
-      await axios.delete(`http://localhost:5001/api/decors/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.delete(`/api/decors/${id}`);
       setDecors((prev) => prev.filter((d) => d._id !== id));
       // Remove all board images with this decor's src
       if (decorToDelete) {
@@ -742,7 +747,7 @@ const Whiteboard: React.FC = () => {
       try {
         const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
         if (shareToken) headers['x-share-token'] = shareToken;
-        const res = await axios.get(`${API_URL}/boards/${selectedBoard._id}`, { headers });
+        const res = await api.get(`${API_URL}/boards/${selectedBoard._id}`, { headers });
         const newHash = hashBoardContent(res.data.content);
         if (lastBoardHash && newHash !== lastBoardHash) {
           setShowRefresh(true);
@@ -766,7 +771,7 @@ const Whiteboard: React.FC = () => {
     try {
       const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
       if (shareToken) headers['x-share-token'] = shareToken;
-      const res = await axios.get(`${API_URL}/boards/${selectedBoard._id}`, { headers });
+      const res = await api.get(`${API_URL}/boards/${selectedBoard._id}`, { headers });
       loadBoardContent(res.data);
       setLastBoardHash(hashBoardContent(res.data.content));
       setShowRefresh(false);
@@ -776,7 +781,7 @@ const Whiteboard: React.FC = () => {
   // Fetch userId and avatar on mount
   useEffect(() => {
     if (!token) return;
-    axios.get('http://localhost:5001/api/boards', {
+    api.get('http://localhost:5001/api/boards', {
       headers: { Authorization: `Bearer ${token}` },
     }).then(res => {
       if (res.data && res.data.length > 0 && res.data[0].user) {
@@ -791,9 +796,7 @@ const Whiteboard: React.FC = () => {
       setUserAvatar(storedAvatar);
     } else {
       // Fetch user info (avatar) from backend
-      axios.get('http://localhost:5001/api/users/me', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      api.get('http://localhost:5001/api/users/me')
         .then(res => {
           if (res.data && res.data.avatar) {
             setUserAvatar(res.data.avatar);
@@ -850,7 +853,7 @@ const Whiteboard: React.FC = () => {
       formData.append('username', settingsUsername);
       if (settingsPassword) formData.append('password', settingsPassword);
       if (settingsAvatarFile) formData.append('avatar', settingsAvatarFile);
-      const res = await axios.patch(
+      const res = await api.patch(
         `http://localhost:5001/api/users/${userId}`,
         formData,
         {
@@ -932,7 +935,7 @@ const Whiteboard: React.FC = () => {
   // Fetch the owner's username if not owner
   useEffect(() => {
     if (selectedBoard && selectedBoard.user && selectedBoard.user !== userId) {
-      axios.get(`${API_URL}/users/${selectedBoard.user}`)
+      api.get(`${API_URL}/users/${selectedBoard.user}`)
         .then(res => {
           setOwnerUsername(res.data.username);
           setOwnerUsernameError(false);
@@ -955,7 +958,7 @@ const Whiteboard: React.FC = () => {
     formData.append('image', file);
     setDecorLoading(true);
     try {
-      const res = await axios.post('http://localhost:5001/api/decors', formData, {
+      const res = await api.post('/api/decors', formData, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setDecors((prev) => [...prev, res.data]);
@@ -974,7 +977,7 @@ const Whiteboard: React.FC = () => {
     if (storedRole) {
       setUserRole(storedRole);
     } else if (token) {
-      axios.get('http://localhost:5001/api/users/me', {
+      api.get('http://localhost:5001/api/users/me', {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then(res => {
@@ -987,6 +990,25 @@ const Whiteboard: React.FC = () => {
           setUserRole(null);
         });
     }
+  }, [token]);
+
+  const [userPlan, setUserPlan] = useState<string>('');
+
+  useEffect(() => {
+    if (!token) return;
+    api.get('http://localhost:5001/api/users/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => {
+        if (res.data && res.data.plan) {
+          setUserPlan(res.data.plan);
+        } else if (res.data && res.data.role) {
+          setUserPlan(res.data.role === 'admin' ? 'Pro+' : 'Basic');
+        } else {
+          setUserPlan('Basic');
+        }
+      })
+      .catch(() => setUserPlan('Basic'));
   }, [token]);
 
   return (
@@ -1625,6 +1647,7 @@ const Whiteboard: React.FC = () => {
           onClose={() => setSettingsOpen(false)}
           showPasswordInput={showPasswordInput}
           setShowPasswordInput={setShowPasswordInput}
+          plan={userPlan}
         />
       )}
       {/* Share Modal: only for owner, not for sharePermission 'edit' */}

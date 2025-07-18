@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 
 export default function Signup() {
   const [username, setUsername] = useState('');
@@ -14,8 +14,8 @@ export default function Signup() {
     setError('');
 
     try {
-      const res = await axios.post(
-        'http://localhost:5001/register',
+      const res = await api.post(
+        '/register',
         { username, email, password },
         { withCredentials: true }
       );
@@ -23,7 +23,7 @@ export default function Signup() {
       if (res.status === 201) {
         localStorage.setItem('token', res.data.token);
         localStorage.setItem('defaultBoardId', res.data.defaultBoardId);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
+        // api instance handles token automatically
         navigate(`/board/${res.data.defaultBoardId}`);
       }
     } catch (err: any) {

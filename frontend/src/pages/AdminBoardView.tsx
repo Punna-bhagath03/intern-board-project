@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 import FramesSection from '../components/FramesSection';
 
 interface Board {
@@ -33,9 +33,7 @@ const AdminBoardView: React.FC = () => {
       setError(null);
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`${API_URL}/boards/${boardId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await api.get(`/api/boards/${boardId}`);
         setBoard(res.data);
         setContent(res.data.content || {});
         setBoardSize({
@@ -66,9 +64,7 @@ const AdminBoardView: React.FC = () => {
     };
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`${API_URL}/boards/${board._id}`, { content: newContent }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.put(`/api/boards/${board._id}`, { content: newContent });
       setContent(newContent);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to save board');
