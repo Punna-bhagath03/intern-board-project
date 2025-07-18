@@ -29,10 +29,9 @@ const ShareModal: React.FC<ShareModalProps> = ({ boardId, open, onClose }) => {
     setCopied(false);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post(
-        `${API_URL}/boards/${boardId}/share`,
-        { permission, expiresIn, expiresUnit },
-        { headers: { Authorization: `Bearer ${token}` } }
+      const res = await api.post(
+        `/api/boards/${boardId}/share`,
+        { permission, expiresIn, expiresUnit }
       );
       // Extract token from response
       const tokenValue = res.data.token || (res.data.link && res.data.link.split('/').pop());

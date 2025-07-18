@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { FaArrowRight, FaArrowLeft, FaTrash, FaUser, FaUserCheck, FaUserTimes } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 
@@ -42,9 +42,7 @@ const UsersBoardsPanel: React.FC = () => {
       setError(null);
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get('http://localhost:5001/api/admin/users', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await api.get('/api/admin/users');
         setUsers(Array.isArray(res.data) ? res.data : []);
       } catch (err: any) {
         setError('Failed to fetch users');
@@ -64,9 +62,7 @@ const UsersBoardsPanel: React.FC = () => {
       setBoardsError(null);
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`http://localhost:5001/api/admin/user/${selectedUser._id}/boards`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await api.get(`/api/admin/user/${selectedUser._id}/boards`);
         setBoards(Array.isArray(res.data) ? res.data : []);
       } catch (err: any) {
         setBoardsError('Failed to fetch boards');
@@ -82,9 +78,7 @@ const UsersBoardsPanel: React.FC = () => {
     if (!window.confirm('Are you sure you want to delete this board? This action cannot be undone.')) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5001/api/boards/${boardId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.delete(`/api/boards/${boardId}`);
       setBoards(prev => prev.filter(b => b._id !== boardId));
     } catch (err) {
       alert('Failed to delete board.');

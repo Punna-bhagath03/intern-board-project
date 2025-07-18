@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { FaArrowRight, FaUser, FaUserCheck, FaUserTimes } from 'react-icons/fa';
 
@@ -31,9 +31,7 @@ const Users: React.FC = () => {
       try {
         const token = localStorage.getItem('token');
         const url = `http://localhost:5001/api/admin/users`;
-        const res = await axios.get(url, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await api.get('/api/admin/users');
         setUsers(Array.isArray(res.data) ? res.data : []);
       } catch (err: any) {
         setError(err.response?.data?.message || 'Failed to fetch users');
@@ -99,7 +97,6 @@ const Users: React.FC = () => {
                 <th className="py-3 px-4 text-left">User Name</th>
                 <th className="py-3 px-4 text-left">Status</th>
                 <th className="py-3 px-4 text-left">Plan</th>
-                <th className="py-3 px-4 text-left">Join Date</th>
                 <th className="py-3 px-4 text-left">Last Login</th>
                 <th className="py-3 px-4 text-left">Role</th>
                 <th className="py-3 px-4 text-center">Details</th>
@@ -107,11 +104,11 @@ const Users: React.FC = () => {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="text-center py-8 text-blue-200">Loading...</td></tr>
+                <tr><td colSpan={6} className="text-center py-8 text-blue-200">Loading...</td></tr>
               ) : error ? (
-                <tr><td colSpan={7} className="text-center py-8 text-red-400">{error}</td></tr>
+                <tr><td colSpan={6} className="text-center py-8 text-red-400">{error}</td></tr>
               ) : paginatedUsers.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-8 text-gray-400">No users found.</td></tr>
+                <tr><td colSpan={6} className="text-center py-8 text-gray-400">No users found.</td></tr>
               ) : paginatedUsers.map(user => (
                 <tr key={user._id} className="border-b border-gray-800 hover:bg-gray-800 transition group">
                   <td className="py-3 px-4 font-semibold flex items-center gap-2">
@@ -129,7 +126,6 @@ const Users: React.FC = () => {
                     )}
                   </td>
                   <td className="py-3 px-4 text-blue-200">{user.plan || (user.role === 'admin' ? 'Pro+' : 'Basic')}</td>
-                  <td className="py-3 px-4">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : <span className="italic text-gray-500">N/A</span>}</td>
                   <td className="py-3 px-4">{user.lastLogin ? new Date(user.lastLogin).toLocaleString() : <span className="italic text-gray-500">Never</span>}</td>
                   <td className="py-3 px-4 capitalize">{user.role}</td>
                   <td className="py-3 px-4 text-center">

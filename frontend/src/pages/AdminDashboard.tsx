@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { FaUsers, FaUserCheck, FaClipboardList, FaUserCog, FaFlag, FaEnvelope, FaArrowLeft, FaUser } from 'react-icons/fa';
 
@@ -27,9 +27,7 @@ const AdminDashboard: React.FC = () => {
       try {
         const token = localStorage.getItem('token');
         const url = 'http://localhost:5001/api/admin/users';
-        const res = await axios.get(url, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await api.get('/api/admin/users');
         setUsers(Array.isArray(res.data) ? res.data : []);
       } catch (err: any) {
         setError(err.response?.data?.message || 'Failed to fetch users');
@@ -62,7 +60,11 @@ const AdminDashboard: React.FC = () => {
         <button
           onClick={() => {
             const boardId = localStorage.getItem('defaultBoardId');
-            if (boardId) navigate(`/board/${boardId}`);
+            if (boardId) {
+              navigate(`/board/${boardId}`);
+            } else {
+              navigate('/board');
+            }
           }}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow focus:outline-none focus:ring-2 focus:ring-blue-400"
           aria-label="Back to boards"

@@ -95,18 +95,28 @@ router.put('/user/:id/plan-role', authenticateToken, isAdminMiddleware, async (r
   const validPlans = ['Basic', 'Pro', 'Pro+'];
   const validRoles = ['user', 'admin'];
   const update = {};
-  if (plan) {
-    if (!validPlans.includes(plan)) return res.status(400).json({ message: 'Invalid plan' });
-    update.plan = plan;
-  }
-  if (role) {
-    if (!validRoles.includes(role)) return res.status(400).json({ message: 'Invalid role' });
-    update.role = role;
-  }
-  if (!plan && !role) return res.status(400).json({ message: 'No plan or role provided' });
+  let shouldInvalidate = false;
   try {
+    const userToUpdate = await User.findById(req.params.id);
+    if (!userToUpdate) return res.status(404).json({ message: 'User not found' });
+    if (userToUpdate.username === 'bhagath') {
+      return res.status(403).json({ message: 'Cannot change role or plan of bhagath. This user is protected.' });
+    }
+    if (plan) {
+      if (!validPlans.includes(plan)) return res.status(400).json({ message: 'Invalid plan' });
+      update.plan = plan;
+      shouldInvalidate = true;
+    }
+    if (role) {
+      if (!validRoles.includes(role)) return res.status(400).json({ message: 'Invalid role' });
+      update.role = role;
+      shouldInvalidate = true;
+    }
+    if (!plan && !role) return res.status(400).json({ message: 'No plan or role provided' });
+    if (shouldInvalidate) {
+      update.$inc = { tokenVersion: 1 };
+    }
     const user = await User.findByIdAndUpdate(req.params.id, update, { new: true, select: '-password' });
-    if (!user) return res.status(404).json({ message: 'User not found' });
     res.json({ message: 'User updated', user });
   } catch (err) {
     res.status(500).json({ message: 'Failed to update user', error: err.message });
