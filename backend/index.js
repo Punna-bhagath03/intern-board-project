@@ -106,7 +106,7 @@ app.post('/login', async (req, res) => {
     if (user.loginHistory.length > 20) user.loginHistory = user.loginHistory.slice(-20);
     await user.save();
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ userId: user._id, tokenVersion: user.tokenVersion || 0 }, process.env.JWT_SECRET, {
       expiresIn: '1d',
     });
 
@@ -121,13 +121,19 @@ app.post('/login', async (req, res) => {
 });
 
 // Auth middleware for /api/users/me
-function authenticateToken(req, res, next) {
+async function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ message: 'No token provided' });
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+  jwt.verify(token, process.env.JWT_SECRET, async (err, payload) => {
     if (err) return res.status(403).json({ message: 'Invalid token' });
-    req.user = user;
+    // Check tokenVersion
+    const user = await User.findById(payload.userId);
+    if (!user) return res.status(401).json({ message: 'User not found' });
+    if ((user.tokenVersion || 0) !== (payload.tokenVersion || 0)) {
+      return res.status(401).json({ message: 'Session expired, please log in again.' });
+    }
+    req.user = payload;
     next();
   });
 }

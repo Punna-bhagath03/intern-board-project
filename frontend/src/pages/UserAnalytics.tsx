@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 
 interface Board {
   _id: string;
@@ -22,9 +22,7 @@ const UserAnalytics: React.FC = () => {
       setError(null);
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`/api/admin/user/${id}/boards`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await api.get(`/api/admin/user/${id}/boards`);
         setBoards(Array.isArray(res.data) ? res.data : []);
       } catch (err: any) {
         setError(err.response?.data?.message || 'Failed to fetch boards');

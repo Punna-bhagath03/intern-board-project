@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -24,7 +24,7 @@ export default function Login() {
     setError('');
 
     try {
-      const res = await axios.post('http://localhost:5001/login', {
+      const res = await api.post('/login', {
         username,
         email,
         password,
@@ -37,7 +37,7 @@ export default function Login() {
         if (res.data.user && res.data.user.role) {
           localStorage.setItem('role', res.data.user.role);
         }
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        // api instance handles token automatically
         // Persistent share-redirect logic
         const redirectPath = localStorage.getItem('share-redirect');
         if (redirectPath) {
@@ -52,19 +52,15 @@ export default function Login() {
         }
         // Fetch user's latest board
         try {
-          const latestRes = await axios.get('http://localhost:5001/api/boards/latest', {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+          const latestRes = await api.get('/api/boards/latest');
           const latestBoard = latestRes.data;
           localStorage.setItem('defaultBoardId', latestBoard._id);
           navigate(`/board/${latestBoard._id}`);
         } catch (err) {
           // No boards: create a new default board for this user
-          const createRes = await axios.post('http://localhost:5001/api/boards', {
+          const createRes = await api.post('/api/boards', {
             name: 'My First Board',
             content: {},
-          }, {
-            headers: { Authorization: `Bearer ${token}` },
           });
           const newBoard = createRes.data;
           localStorage.setItem('defaultBoardId', newBoard._id);

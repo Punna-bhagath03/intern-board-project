@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { FaUser, FaUserCheck, FaUserTimes } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 
@@ -28,9 +28,7 @@ const PlansRoles: React.FC = () => {
       setError(null);
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get('http://localhost:5001/api/admin/users', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await api.get('/api/admin/users');
         setUsers(Array.isArray(res.data) ? res.data : []);
       } catch (err: any) {
         setError('Failed to fetch users');
@@ -45,7 +43,7 @@ const PlansRoles: React.FC = () => {
     // Fetch current user role
     const token = localStorage.getItem('token');
     if (!token) return;
-    axios.get('http://localhost:5001/api/users/me', {
+    api.get('http://localhost:5001/api/users/me', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(res => {
@@ -70,7 +68,7 @@ const PlansRoles: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       const { role, plan } = editState[id];
-      const res = await axios.put(`http://localhost:5001/api/admin/user/${id}/plan-role`, { role, plan }, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await api.put(`/api/admin/user/${id}/plan-role`, { role, plan });
       setUsers(prev => prev.map(u => u._id === id ? { ...u, ...res.data.user } : u));
       setEditState(prev => { const copy = { ...prev }; delete copy[id]; return copy; });
     } catch (err) {
