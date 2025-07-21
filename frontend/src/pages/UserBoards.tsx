@@ -2,16 +2,24 @@ import React, { useEffect, useState } from 'react';
 import api from '../api';
 import { useNavigate, useParams } from 'react-router-dom';
 import { FaArrowLeft, FaTrash, FaUser, FaArrowRight } from 'react-icons/fa';
+import { useNotification } from '../NotificationContext';
 
 interface User {
   _id: string;
   username: string;
+  avatar?: string;
 }
 
 interface Board {
   _id: string;
   name: string;
 }
+
+const getAvatarUrl = (avatar: string | null | undefined): string => {
+  if (!avatar) return '/default-avatar.png';
+  if (avatar.startsWith('http')) return avatar;
+  return `http://localhost:5001/${avatar.replace(/^\/+/,'')}`;
+};
 
 const UserBoards: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -22,7 +30,9 @@ const UserBoards: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [boardsLoading, setBoardsLoading] = useState(false);
   const [boardsError, setBoardsError] = useState<string | null>(null);
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -63,6 +73,23 @@ const UserBoards: React.FC = () => {
     fetchBoards();
   }, [selectedUser]);
 
+  // Fetch current user's avatar for profile icon
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    api.get('http://localhost:5001/api/users/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => {
+        if (res.data && res.data.avatar) {
+          setUserAvatar(res.data.avatar);
+        } else {
+          setUserAvatar(null);
+        }
+      })
+      .catch(() => setUserAvatar(null));
+  }, []);
+
   const handleDeleteBoard = async (boardId: string) => {
     if (!selectedUser) return;
     if (!window.confirm('Are you sure you want to delete this board? This action cannot be undone.')) return;
@@ -70,22 +97,34 @@ const UserBoards: React.FC = () => {
       const token = localStorage.getItem('token');
       await api.delete(`/api/boards/${boardId}`);
       setBoards(prev => prev.filter(b => b._id !== boardId));
+      showNotification('Board deleted successfully.', 'success');
     } catch (err) {
-      alert('Failed to delete board.');
+      showNotification('Failed to delete board.', 'error');
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 text-white flex flex-col">
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-8 py-4 bg-gray-800 border-b border-gray-700">
-        <h1 className="text-2xl font-bold tracking-wide">Users boards</h1>
+      <div className="flex items-center justify-between px-8 py-4 bg-gray-800 border-b border-gray-700 relative">
+        {/* Profile Icon (pill) */}
+        <div className="absolute left-8 top-1/2 -translate-y-1/2 flex items-center">
+          <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center text-gray-700 text-2xl font-bold shadow-md border-2 border-gray-200 overflow-hidden">
+            {userAvatar ? (
+              <img src={getAvatarUrl(userAvatar)} alt="Avatar" className="w-12 h-12 rounded-full object-cover" />
+            ) : (
+              <FaUser color="#3b82f6" size={32} />
+            )}
+          </div>
+        </div>
+        <h1 className="text-2xl font-bold tracking-wide mx-auto">Users boards</h1>
+        {/* Upgrade Button (pill) */}
         <button
-          onClick={() => navigate('/admin/dashboard')}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow focus:outline-none focus:ring-2 focus:ring-blue-400"
+          onClick={() => navigate('/pricing')}
+          className="absolute right-8 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-full font-semibold shadow focus:outline-none focus:ring-2 focus:ring-blue-400 transition text-base"
+          style={{ minWidth: 120 }}
         >
-          <FaArrowLeft />
-          Back to dashboard
+          Upgrade
         </button>
       </div>
       <div className="flex flex-1">
@@ -103,11 +142,11 @@ const UserBoards: React.FC = () => {
               <button
                 key={user._id}
                 onClick={() => setSelectedUser(user)}
-                className={`flex items-center justify-between px-4 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none border ${selectedUser && selectedUser._id === user._id ? 'border-blue-500' : 'border-transparent'}`}
+                className={`flex items-center justify-between px-4 py-3 rounded-full bg-gray-800 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none border ${selectedUser && selectedUser._id === user._id ? 'border-blue-500' : 'border-transparent'} transition`}
                 aria-label={`Show boards for ${user.username}`}
               >
-                <span className="flex items-center gap-2"><FaUser className="text-blue-400" /> {user.username}</span>
-                <FaArrowRight className="text-lg" />
+                <span className="flex items-center gap-2"><FaUser color="#60a5fa" size={20} /> {user.username}</span>
+                <FaArrowRight color="#60a5fa" size={20} />
               </button>
             ))}
           </div>
@@ -128,14 +167,14 @@ const UserBoards: React.FC = () => {
               ) : (
                 <ul className="space-y-4">
                   {boards.map(board => (
-                    <li key={board._id} className="flex items-center justify-between bg-gray-800 rounded-lg p-4 shadow hover:shadow-xl transition">
+                    <li key={board._id} className="flex items-center justify-between bg-gray-800 rounded-full p-4 shadow hover:shadow-xl transition">
                       <span className="font-semibold text-lg text-blue-200">{board.name}</span>
                       <button
                         onClick={() => handleDeleteBoard(board._id)}
-                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded font-semibold shadow focus:outline-none focus:ring-2 focus:ring-red-400"
+                        className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-full font-semibold shadow focus:outline-none focus:ring-2 focus:ring-red-400 transition flex items-center gap-2"
                         aria-label={`Delete board ${board.name}`}
                       >
-                        <FaTrash className="text-lg" />
+                        <FaTrash color="#fff" size={18} /> Delete
                       </button>
                     </li>
                   ))}

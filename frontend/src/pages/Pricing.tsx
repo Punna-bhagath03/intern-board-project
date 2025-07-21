@@ -1,89 +1,172 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaGithub, FaRedditAlien, FaYoutube, FaXTwitter } from 'react-icons/fa6';
+import api from '../api';
+import { useNotification } from '../NotificationContext';
 
-const plans = [
+const PLAN_DETAILS = [
   {
-    name: 'Hobby',
+    name: 'Basic',
     price: 'Free',
-    description: 'Includes',
+    priceSuffix: '',
     features: [
-      'Pro two-week trial',
-      'Limited agent requests',
-      'Limited tab completions',
+      '✓ Max 2 boards',
+      '✓ Max 2 decor uploads',
+      '✗ No download, share, or upload features',
+      '✗ No frames section',
+      '✓ Access to default decors',
+      '✗ No board reset',
     ],
-    button: <button className="bg-white text-gray-900 px-6 py-2 rounded-lg font-semibold shadow border border-gray-300 hover:bg-gray-100 transition">Download</button>,
-    secondary: <button className="bg-gray-800 text-white px-6 py-2 rounded-lg font-semibold shadow border border-gray-700 hover:bg-gray-900 transition">Others</button>,
     gradient: 'from-gray-900 via-gray-800 to-gray-900',
     text: 'text-blue-200',
     border: 'border-gray-700',
   },
   {
     name: 'Pro',
-    price: '$20',
+    price: '$18',
     priceSuffix: '/mo',
-    description: 'Everything in Hobby, plus',
     features: [
-      'Extended limits on agent',
-      'Unlimited tab completions',
-      'Access to Background Agents',
-      'Access to Bug Bot',
-      'Access to maximum context windows',
+      '✓ Max 5 boards',
+      '✓ Rename boards',
+      '✓ Download feature',
+      '✓ 1 frame item',
+      '✗ No decor upload',
+      '✗ No share feature',
+      '✓ Board reset',
     ],
-    button: <button className="bg-blue-500 text-white px-6 py-2 rounded-lg font-semibold shadow hover:bg-blue-600 transition">Get Pro</button>,
-    secondary: <a href="#" className="text-blue-300 underline ml-2">More info</a>,
     gradient: 'from-gray-800 via-gray-900 to-gray-800',
     text: 'text-blue-300',
     border: 'border-gray-700',
     highlight: true,
   },
   {
-    name: 'Ultra',
-    price: '$200',
+    name: 'Pro+',
+    price: '$25',
     priceSuffix: '/mo',
-    description: 'Everything in Pro, plus',
     features: [
-      '20x usage on all OpenAI, Claude, Gemini models',
-      'Priority access to new features',
+      '✓ Unlimited boards',
+      '✓ Unlimited decor uploads',
+      '✓ Download, share, upload features',
+      '✓ Unlimited frames',
+      '✓ Board reset',
+      '✓ All features unlocked',
     ],
-    button: <button className="bg-white text-blue-700 px-6 py-2 rounded-lg font-semibold shadow border border-blue-700 hover:bg-blue-100 transition">Get Ultra</button>,
     gradient: 'from-blue-900 via-blue-700 to-blue-500',
     text: 'text-white',
     border: 'border-blue-700',
   },
 ];
 
+const getPlanKey = (plan: string) => {
+  if (!plan) return 'Basic';
+  if (plan.toLowerCase() === 'pro+') return 'Pro+';
+  if (plan.toLowerCase() === 'pro') return 'Pro';
+  return 'Basic';
+};
+
+const planApiValue = (plan: string) => {
+  if (plan === 'Pro+') return 'Pro+';
+  if (plan === 'Pro') return 'Pro';
+  return 'Basic';
+};
+
 const Pricing: React.FC = () => {
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
+  const [userPlan, setUserPlan] = useState('');
+  const [userId, setUserId] = useState<string | null>(null);
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+
+  // Fetch user info (plan and id)
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    api.get('http://localhost:5001/api/users/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => {
+        if (res.data && res.data.plan) {
+          setUserPlan(getPlanKey(res.data.plan));
+        } else if (res.data && res.data.role) {
+          setUserPlan(res.data.role === 'admin' ? 'Pro+' : 'Basic');
+        } else {
+          setUserPlan('Basic');
+        }
+        if (res.data && res.data._id) {
+          setUserId(res.data._id);
+        } else {
+          // fallback: fetch boards and get user from there
+          api.get('http://localhost:5001/api/boards', {
+            headers: { Authorization: `Bearer ${token}` },
+          }).then(r => {
+            if (r.data && r.data.length > 0 && r.data[0].user) {
+              setUserId(r.data[0].user);
+            }
+          });
+        }
+      })
+      .catch(() => setUserPlan('Basic'));
+  }, []);
+
+  // Plan change handler
+  const handlePlanChange = async (plan: string) => {
+    if (!userId) return;
+    setLoadingPlan(plan);
+    try {
+      await api.patch(`/api/users/${userId}`, { plan: planApiValue(plan) });
+      setUserPlan(plan);
+      showNotification(`Your plan has been updated to ${plan}.`, 'success');
+      // Redirect to user's boards after short delay
+      setTimeout(() => {
+        const defaultBoardId = localStorage.getItem('defaultBoardId');
+        if (defaultBoardId) {
+          navigate(`/board/${defaultBoardId}`);
+        } else {
+          navigate('/board');
+        }
+      }, 1200);
+    } catch (err: any) {
+      showNotification('Failed to update plan. Please try again.', 'error');
+    } finally {
+      setLoadingPlan(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black flex flex-col items-center py-12 px-4">
       <h1 className="text-4xl font-extrabold text-white mb-2 mt-4">Pricing</h1>
       <p className="text-lg text-gray-300 mb-10">Choose the plan that works for you</p>
       <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full max-w-5xl">
-        {plans.map((plan, idx) => (
-          <div
-            key={plan.name}
-            className={`flex-1 flex flex-col items-center rounded-2xl p-8 shadow-lg border ${plan.border} max-w-xs min-w-[260px] bg-gradient-to-br ${plan.gradient} ${plan.highlight ? 'ring-2 ring-blue-400' : ''}`}
-          >
-            <span className={`text-3xl font-extrabold mb-2 ${plan.text}`}>{plan.name}</span>
-            <span className={`text-4xl font-bold mb-2 ${plan.text}`}>{plan.price} {plan.priceSuffix && <span className="text-lg font-medium text-gray-300">{plan.priceSuffix}</span>}</span>
-            <div className={`h-1 w-16 ${plan.name === 'Ultra' ? 'bg-white' : 'bg-blue-400'} rounded-full mb-4`} />
-            <div className="text-gray-300 text-base mb-6 space-y-2 text-left w-full">
-              <div className="mb-2 font-semibold">{plan.description}</div>
-              <ul className="space-y-1">
+        {PLAN_DETAILS.map((plan, idx) => {
+          const isCurrent = getPlanKey(userPlan) === plan.name;
+          let buttonText = 'Get ' + plan.name;
+          if (isCurrent) buttonText = 'Current';
+          return (
+            <div
+              key={plan.name}
+              className={`flex-1 flex flex-col items-center rounded-2xl p-8 shadow-lg border ${plan.border} max-w-xs min-w-[260px] bg-gradient-to-br ${plan.gradient} ${plan.highlight ? 'ring-2 ring-blue-400' : ''}`}
+            >
+              <span className={`text-3xl font-extrabold mb-2 ${plan.text}`}>{plan.name}</span>
+              <span className={`text-4xl font-bold mb-2 ${plan.text}`}>{plan.price} {plan.priceSuffix && <span className="text-lg font-medium text-gray-300">{plan.priceSuffix}</span>}</span>
+              <div className={`h-1 w-16 ${plan.name === 'Pro+' ? 'bg-white' : 'bg-blue-400'} rounded-full mb-4`} />
+              <ul className={`${plan.text.includes('white') ? 'text-blue-100' : 'text-gray-300'} text-base mb-6 space-y-2 text-left w-full`}>
                 {plan.features.map((f, i) => (
-                  <li key={i} className="flex items-center gap-2">
-                    <span className="text-green-400 font-bold">✓</span> <span>{f}</span>
-                  </li>
+                  <li key={i}>{f}</li>
                 ))}
               </ul>
+              <button
+                className={`px-6 py-2 rounded-lg font-semibold shadow w-full mt-auto ${isCurrent ? 'bg-blue-500 text-white opacity-60 cursor-not-allowed' : plan.name === 'Pro+' ? 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-100' : plan.name === 'Pro' ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-700 text-blue-200 hover:bg-gray-800'} transition flex items-center justify-center`}
+                disabled={isCurrent || loadingPlan === plan.name}
+                onClick={() => handlePlanChange(plan.name)}
+              >
+                {loadingPlan === plan.name ? (
+                  <span className="inline-block w-5 h-5 border-2 border-white border-t-blue-500 rounded-full animate-spin align-middle mr-2" />
+                ) : null}
+                {buttonText}
+              </button>
             </div>
-            <div className="flex gap-2 w-full justify-center mt-auto">
-              {plan.button}
-              {plan.secondary}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div className="mt-12 text-center">
         <span className="text-gray-400 text-sm">All plans are for individual users. Team plans coming soon.</span>
