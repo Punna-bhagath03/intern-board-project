@@ -52,6 +52,22 @@ router.post('/boards', authenticateToken, async (req, res) => {
     return res.status(400).json({ message: 'Name is  required.' });
   }
   try {
+    // Enforce board limit for Basic and Pro users
+    const User = require('../models/User');
+    const user = await User.findById(req.user.userId);
+    if (user) {
+      if (user.plan === 'Basic') {
+        const boardCount = await Board.countDocuments({ user: user._id });
+        if (boardCount >= 2) {
+          return res.status(403).json({ message: 'Basic plan users can only create up to 2 boards.' });
+        }
+      } else if (user.plan === 'Pro') {
+        const boardCount = await Board.countDocuments({ user: user._id });
+        if (boardCount >= 5) {
+          return res.status(403).json({ message: 'Pro plan users can only create up to 5 boards.' });
+        }
+      }
+    }
     const board = new Board({
       user: req.user.userId,
       name,
@@ -319,6 +335,15 @@ router.post('/decors', authenticateToken, decorUpload.single('image'), async (re
     return res.status(400).json({ message: 'No file uploaded' });
   }
   try {
+    // Enforce decor limit for Basic users
+    const User = require('../models/User');
+    const user = await User.findById(req.user.userId);
+    if (user && user.plan === 'Basic') {
+      const decorCount = await Decor.countDocuments({ user: user._id });
+      if (decorCount >= 2) {
+        return res.status(403).json({ message: 'Basic plan users can only upload up to 2 decor items.' });
+      }
+    }
     const imageUrl = `/uploads/decors/${req.file.filename}`;
     const decor = new Decor({
       user: req.user.userId,
