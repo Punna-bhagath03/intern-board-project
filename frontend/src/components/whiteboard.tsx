@@ -188,6 +188,39 @@ function SettingsModal({
   );
 }
 
+// UpgradeModal: reusable modal for upgrade prompts
+const UpgradeModal: React.FC<{ open: boolean; onClose: () => void; feature: string; requiredPlan?: string }> = ({ open, onClose, feature, requiredPlan }) => {
+  const navigate = useNavigate();
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md relative animate-pop-in">
+        <button
+          className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          &times;
+        </button>
+        <div className="flex flex-col items-center text-center">
+          <div className="mb-4">
+            <svg width="48" height="48" fill="none" viewBox="0 0 48 48"><circle cx="24" cy="24" r="24" fill="#2563eb"/><path d="M24 14v12" stroke="#fff" strokeWidth="3" strokeLinecap="round"/><circle cx="24" cy="32" r="2" fill="#fff"/></svg>
+          </div>
+          <h2 className="text-2xl font-bold mb-2 text-blue-700">Upgrade Required</h2>
+          <p className="text-gray-700 mb-4 text-lg font-medium">The <span className="font-bold text-blue-600">{feature}</span> feature is available for <span className="font-bold text-blue-600">{requiredPlan || 'Pro/Pro+'}</span> users only.</p>
+          <p className="text-gray-500 mb-6">Upgrade your plan to unlock this and more premium features!</p>
+          <button
+            className="bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-500 text-white font-bold px-6 py-3 rounded-full shadow-lg text-lg transition-all"
+            onClick={() => { onClose(); navigate('/pricing'); }}
+          >
+            View Plans & Upgrade
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Whiteboard: React.FC = () => {
   // Board management state
   const [boards, setBoards] = useState<Board[]>([]);
@@ -1011,6 +1044,25 @@ const Whiteboard: React.FC = () => {
       .catch(() => setUserPlan('Basic'));
   }, [token]);
 
+  // Helper for plan restrictions
+  const isBasic = userPlan === 'Basic';
+  const isPro = userPlan === 'Pro';
+  const isProPlus = userPlan === 'Pro+';
+  const boardLimitReached = (isBasic && boards.length >= 2) || (isPro && boards.length >= 5);
+  // For frames: Pro can only have 1 frame
+  const frameLimitReached = isPro && canvasFrames.length >= 1;
+  const decorLimitReached = isBasic && decors.length >= 2;
+
+  // Upgrade modal state
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState('');
+  const [upgradeRequiredPlan, setUpgradeRequiredPlan] = useState('');
+  const openUpgradeModal = (feature: string, requiredPlan?: string) => {
+    setUpgradeFeature(feature);
+    setUpgradeRequiredPlan(requiredPlan || 'Pro/Pro+');
+    setUpgradeModalOpen(true);
+  };
+
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
       {/* Header */}
@@ -1067,12 +1119,13 @@ const Whiteboard: React.FC = () => {
           >
             Logout
           </button>
-          {/* Share button only for edit or owner */}
-          {selectedBoard && sharePermission !== 'view' && (
+          {/* Share button only for edit or owner, and only in header */}
+          {selectedBoard && isOwner && sharePermission !== 'view' && (
             <button
-              onClick={() => setShareOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full font-semibold shadow border border-blue-700 transition-colors"
-              title="Share this board"
+              onClick={isProPlus ? () => setShareOpen(true) : () => openUpgradeModal('Share', 'Pro+')}
+              className={`bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full font-semibold shadow border border-blue-700 transition-colors ml-2 ${isProPlus ? '' : 'opacity-50 cursor-not-allowed'}`}
+              title={isProPlus ? 'Share this board' : 'Share is not available for your plan.'}
+              type="button"
             >
               Share
             </button>
@@ -1164,10 +1217,13 @@ const Whiteboard: React.FC = () => {
                     onChange={(e) => setNewBoardName(e.target.value)}
                     placeholder="New board name"
                     className="p-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white text-gray-900 placeholder-gray-400 shadow-sm"
+                    disabled={boardLimitReached}
                   />
                   <button
-                    onClick={handleCreateBoard}
-                    className="bg-white hover:bg-gray-200 text-gray-900 font-bold px-4 py-2 rounded-full shadow transition border border-gray-300"
+                    onClick={boardLimitReached ? () => openUpgradeModal('Create Board', isBasic ? 'Pro' : 'Pro+') : handleCreateBoard}
+                    className={`bg-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-300 ${(boardLimitReached) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 text-gray-900'}`}
+                    title={isBasic ? (boardLimitReached ? 'Basic users can only create 2 boards.' : '') : isPro ? (boardLimitReached ? 'Pro users can only create 5 boards.' : '') : ''}
+                    type="button"
                   >
                     + Create
                   </button>
@@ -1194,18 +1250,17 @@ const Whiteboard: React.FC = () => {
                 {saving ? 'Saving...' : 'Save'}
               </button>
               <button
-                onClick={() => handleDownloadBoard('png')}
-                className="flex items-center gap-2 bg-[#23272f] hover:bg-[#2d323c] text-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-700"
-                title="Download board as image"
-                disabled={sharePermission === 'view'}
+                onClick={isBasic ? () => openUpgradeModal('Download', 'Pro/Pro+') : () => handleDownloadBoard('png')}
+                className={`flex items-center gap-2 bg-[#23272f] text-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-700 ${isBasic ? 'opacity-70' : 'hover:bg-[#2d323c]'}`}
+                title={isBasic ? 'Download is not available for Basic users.' : 'Download board as image'}
               >
                 <DownloadIcon className="w-5 h-5" />
                 Download
               </button>
               <button
-                onClick={handleReset}
-                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-full shadow transition"
-                disabled={sharePermission === 'view'}
+                onClick={isBasic ? () => openUpgradeModal('Reset Board', 'Pro/Pro+') : handleReset}
+                className={`flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-full shadow transition ${isBasic ? 'opacity-70' : ''}`}
+                title={isBasic ? 'Reset is not available for Basic users.' : ''}
               >
                 <TrashIcon className="w-5 h-5" />
                 Reset
@@ -1609,17 +1664,47 @@ const Whiteboard: React.FC = () => {
                       ))}
                       {decorLoading && <span className="text-xs text-gray-400">Loading...</span>}
                     </div>
-                    <input
-                      type="file"
-                      accept="image/png,image/webp,image/jpeg,image/jpg"
-                      onChange={handleDecorUpload}
-                      ref={decorInputRef}
-                      className="block w-full text-xs border border-gray-300 rounded cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-                      style={{ marginTop: 4 }}
-                    />
+                    {/* In the decor upload section: */}
+                    {/* Only show upload input for Pro+ users */}
+                    {isProPlus && (
+                      <input
+                        type="file"
+                        accept="image/png,image/webp,image/jpeg,image/jpg"
+                        onChange={handleDecorUpload}
+                        ref={decorInputRef}
+                        className="block w-full text-xs border border-gray-300 rounded cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+                        style={{ marginTop: 4 }}
+                      />
+                    )}
+                    {(isBasic || isPro) && (
+                      <input
+                        type="file"
+                        disabled
+                        className="block w-full text-xs border border-gray-300 rounded cursor-not-allowed bg-[#f4f5f7] text-gray-400 placeholder-gray-400 shadow-sm opacity-50"
+                        style={{ marginTop: 4 }}
+                        title={isBasic ? 'Decor upload is not available for Basic users.' : 'Decor upload is not available for Pro users.'}
+                      />
+                    )}
                     <span className="text-xs text-gray-500">PNG/WebP/JPEG only, max 5MB</span>
                   </div>
-                  <FramesSection onAddFrame={handleAddFrameToBoard} />
+                  {/* Frames section: fade/disable for Basic users */}
+                  <div
+                    style={{ opacity: isBasic ? 0.4 : isPro && frameLimitReached ? 0.7 : 1, pointerEvents: 'auto' }}
+                    title={isBasic ? 'Frames are not available for Basic users.' : isPro && frameLimitReached ? 'Pro users can only have 1 frame.' : ''}
+                    onClick={isBasic ? () => openUpgradeModal('Frames', 'Pro/Pro+') : undefined}
+                  >
+                    <FramesSection
+                      onAddFrame={src => {
+                        if (isPro && frameLimitReached) {
+                          openUpgradeModal('More Frames', 'Pro+');
+                          return;
+                        }
+                        handleAddFrameToBoard(src);
+                      }}
+                      disableAdd={isPro && frameLimitReached}
+                      onUpgradeClick={() => openUpgradeModal(isBasic ? 'Frames' : 'More Frames', isBasic ? 'Pro/Pro+' : 'Pro+')}
+                    />
+                  </div>
                 </aside>
               )}
             </div>
@@ -1658,6 +1743,8 @@ const Whiteboard: React.FC = () => {
           onClose={() => setShareOpen(false)}
         />
       )}
+      {/* Upgrade Modal */}
+      <UpgradeModal open={upgradeModalOpen} onClose={() => setUpgradeModalOpen(false)} feature={upgradeFeature} requiredPlan={upgradeRequiredPlan} />
     </div>
   );
 };

@@ -116,20 +116,54 @@ const AdminDashboard: React.FC = () => {
           {/* Plan Details Section */}
           <div className="bg-gray-900 rounded-2xl shadow-lg p-8 border border-gray-700">
             <div className="text-lg font-semibold mb-6 text-center">Plan details and users' current plans</div>
-            <div className="flex flex-col md:flex-row gap-8 justify-center items-center">
-              <div className="flex-1 flex flex-col items-center bg-gray-800 rounded-xl p-6 shadow hover:shadow-xl transition">
-                <span className="text-2xl font-bold text-blue-300 mb-2">Basic</span>
-                <span className="text-gray-400">(coming soon)</span>
-        </div>
-              <div className="flex-1 flex flex-col items-center bg-gray-800 rounded-xl p-6 shadow hover:shadow-xl transition">
-                <span className="text-2xl font-bold text-blue-400 mb-2">Pro</span>
-                <span className="text-gray-400">(coming soon)</span>
-          </div>
-              <div className="flex-1 flex flex-col items-center bg-gray-800 rounded-xl p-6 shadow hover:shadow-xl transition">
-                <span className="text-2xl font-bold text-blue-500 mb-2">Pro+</span>
-                <span className="text-gray-400">(coming soon)</span>
-          </div>
-          </div>
+            <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch">
+              {/* Basic Plan */}
+              <div className="flex-1 flex flex-col items-center bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-700 max-w-xs min-w-[260px]">
+                <span className="text-3xl font-extrabold text-blue-200 mb-2">Basic</span>
+                <span className="text-4xl font-bold text-white mb-2">Free</span>
+                <div className="h-1 w-16 bg-blue-400 rounded-full mb-4" />
+                <ul className="text-gray-300 text-base mb-6 space-y-2 text-left w-full">
+                  <li>✓ Max 2 boards</li>
+                  <li>✓ Max 2 decor uploads</li>
+                  <li>✗ No download, share, or upload features</li>
+                  <li>✗ No frames section</li>
+                  <li>✓ Access to default decors</li>
+                  <li>✗ No board reset</li>
+                </ul>
+                <button className="bg-blue-500 text-white px-6 py-2 rounded-lg font-semibold shadow opacity-60 cursor-not-allowed" disabled>Current</button>
+              </div>
+              {/* Pro Plan */}
+              <div className="flex-1 flex flex-col items-center bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800 rounded-2xl p-8 shadow-lg border border-gray-700 max-w-xs min-w-[260px]">
+                <span className="text-3xl font-extrabold text-blue-300 mb-2">Pro</span>
+                <span className="text-4xl font-bold text-white mb-2">$18 <span className="text-lg font-medium text-gray-300">/mo</span></span>
+                <div className="h-1 w-16 bg-blue-400 rounded-full mb-4" />
+                <ul className="text-gray-300 text-base mb-6 space-y-2 text-left w-full">
+                  <li>✓ Max 5 boards</li>
+                  <li>✓ Rename boards</li>
+                  <li>✓ Download feature</li>
+                  <li>✓ 1 frame item</li>
+                  <li>✗ No decor upload</li>
+                  <li>✗ No share feature</li>
+                  <li>✓ Board reset</li>
+                </ul>
+                <button className="bg-blue-500 text-white px-6 py-2 rounded-lg font-semibold shadow">Get Pro</button>
+              </div>
+              {/* Pro+ Plan */}
+              <div className="flex-1 flex flex-col items-center bg-gradient-to-br from-blue-900 via-blue-700 to-blue-500 rounded-2xl p-8 shadow-lg border border-blue-700 max-w-xs min-w-[260px]">
+                <span className="text-3xl font-extrabold text-white mb-2">Pro+</span>
+                <span className="text-4xl font-bold text-white mb-2">$25 <span className="text-lg font-medium text-blue-200">/mo</span></span>
+                <div className="h-1 w-16 bg-white rounded-full mb-4" />
+                <ul className="text-blue-100 text-base mb-6 space-y-2 text-left w-full">
+                  <li>✓ Unlimited boards</li>
+                  <li>✓ Unlimited decor uploads</li>
+                  <li>✓ Download, share, upload features</li>
+                  <li>✓ Unlimited frames</li>
+                  <li>✓ Board reset</li>
+                  <li>✓ All features unlocked</li>
+                </ul>
+                <button className="bg-white text-blue-700 px-6 py-2 rounded-lg font-semibold shadow">Get Pro+</button>
+              </div>
+            </div>
           </div>
         </main>
         </div>
