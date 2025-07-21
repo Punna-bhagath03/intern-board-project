@@ -13,10 +13,11 @@ import deep1 from '../assets/deep1.png';
 import deep2 from '../assets/deep2.png';
 import FramesSection from './FramesSection';
 import ShareModal from './ShareModal';
+import { FaSignOutAlt, FaShareAlt, FaArrowUp, FaTachometerAlt, FaEdit, FaTrash } from 'react-icons/fa';
 
 // Helper to get absolute avatar URL
 const getAvatarUrl = (avatar: string | null | undefined): string => {
-  if (!avatar) return '/default-avatar.png';
+  if (!avatar) return '';
   if (avatar.startsWith('http')) return avatar;
   return `http://localhost:5001/${avatar.replace(/^\/+/, '')}`;
 };
@@ -77,11 +78,13 @@ interface SettingsModalProps {
   settingsPassword: string;
   setSettingsPassword: (v: string) => void;
   settingsAvatarPreview: string | null;
+  setSettingsAvatarPreview: (v: string | null) => void;
   userAvatar: string | null;
   handleAvatarChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   settingsError: string;
   settingsSuccess: string;
   settingsChanged: boolean;
+  setSettingsChanged: (v: boolean) => void;
   settingsLoading: boolean;
   handleSaveSettings: (e: React.FormEvent) => void;
   passwordInputRef: React.RefObject<HTMLInputElement | null>;
@@ -89,6 +92,8 @@ interface SettingsModalProps {
   showPasswordInput: boolean;
   setShowPasswordInput: (v: boolean) => void;
   plan: string;
+  setSettingsAvatar: (v: string | null) => void;
+  setSettingsAvatarFile: (v: File | null) => void;
 }
 
 function SettingsModal({
@@ -98,18 +103,22 @@ function SettingsModal({
   settingsPassword,
   setSettingsPassword,
   settingsAvatarPreview,
+  setSettingsAvatarPreview,
   userAvatar,
   handleAvatarChange,
   settingsError,
   settingsSuccess,
   settingsChanged,
+  setSettingsChanged,
   settingsLoading,
   handleSaveSettings,
   passwordInputRef,
   onClose,
   showPasswordInput,
   setShowPasswordInput,
-  plan
+  plan,
+  setSettingsAvatar,
+  setSettingsAvatarFile,
 }: SettingsModalProps) {
   const hasFocusedRef = useRef(false);
   useEffect(() => {
@@ -148,7 +157,23 @@ function SettingsModal({
           <div>
             <label className="block text-sm font-semibold mb-1">Avatar</label>
             <div className="flex items-center gap-4">
-              <img src={settingsAvatarPreview || getAvatarUrl(userAvatar)} alt="Avatar" className="w-16 h-16 rounded-full border object-cover" />
+              {settingsAvatarPreview || userAvatar ? (
+                <div className="relative">
+                  <img src={settingsAvatarPreview || getAvatarUrl(userAvatar)} alt="Avatar" className="w-16 h-16 rounded-full border object-cover" />
+                  <button
+                    type="button"
+                    className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center shadow border-2 border-white"
+                    title="Remove photo"
+                    onClick={() => { setSettingsAvatarPreview(null); setSettingsAvatarFile(null); setSettingsAvatar(null); setSettingsChanged(true); }}
+                  >
+                    &times;
+                  </button>
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-full border bg-gray-200 flex items-center justify-center text-2xl font-bold text-blue-400">
+                  {settingsUsername ? settingsUsername.charAt(0).toUpperCase() : '?'}
+                </div>
+              )}
               <input type="file" accept="image/*" onChange={handleAvatarChange} className="block text-sm" />
             </div>
           </div>
@@ -276,34 +301,19 @@ const Whiteboard: React.FC = () => {
       });
   }, [token]);
 
-  // Fetch the selected board by id
+  // On page load/refresh, always fetch the board content for the board in the URL
   useEffect(() => {
-    if (!token) {
-      navigate('/login');
-      return;
-    }
     if (!id) return;
-    setLoadingBoards(true);
-    // Check for shareToken in URL
-    const headers: any = { Authorization: `Bearer ${token}` };
-    if (shareToken) {
-      headers['x-share-token'] = shareToken;
-    }
-    api.get(`/api/boards/${id}`, { headers })
-      .then((res) => {
-        setSelectedBoard(res.data);
-        loadBoardContent(res.data);
-        setLoadingBoards(false);
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    api.get(`/api/boards/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        if (res.data) loadBoardContent(res.data);
       })
-      .catch((err) => {
-        setLoadingBoards(false);
-        if (err.response && (err.response.status === 401 || err.response.status === 403)) {
-          navigate('/login');
-        } else {
-          setError('Board not found or access denied.');
-        }
+      .catch(() => {
+        setError('Failed to load board content');
       });
-  }, [token, id, location.search]);
+  }, [id]);
 
   // Load board content into whiteboard
   const loadBoardContent = (board: Board) => {
@@ -371,8 +381,11 @@ const Whiteboard: React.FC = () => {
       setBoards((prev) => [...prev, board]);
       setNewBoardName('');
       setSelectedBoard(board);
-      resetBoardState();
       navigate(`/board/${board._id}`);
+      api.get(`/api/boards/${board._id}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => {
+          if (res.data) loadBoardContent(res.data);
+        });
     } catch (e) {
       setError('Failed to create board');
     }
@@ -380,10 +393,15 @@ const Whiteboard: React.FC = () => {
 
   // Board list click handler
   const handleSelectBoard = (board: Board) => {
-    if (!selectedBoard || selectedBoard._id !== board._id) {
-      resetBoardState();
-      navigate(`/board/${board._id}`);
-    }
+    if (!board) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setSelectedBoard(board);
+    navigate(`/board/${board._id}`);
+    api.get(`/api/boards/${board._id}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        if (res.data) loadBoardContent(res.data);
+      });
   };
 
   // Update handleBackgroundUpload to upload the file to the backend and use the returned URL
@@ -1063,73 +1081,67 @@ const Whiteboard: React.FC = () => {
     setUpgradeModalOpen(true);
   };
 
+  const [editingName, setEditingName] = useState('');
+
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
       {/* Header */}
-      <header className="w-full py-6 bg-gradient-to-r from-gray-900 via-gray-800 to-black shadow text-center relative">
-        <h1 className="text-3xl font-extrabold text-white tracking-wide drop-shadow">
-          {selectedBoard ?
-            (isOwner
-              ? selectedBoard.name
-              : `${selectedBoard.name} (by ${ownerUsernameError ? 'Unknown' : (ownerUsername || '...')})`)
-            : 'Canvas Board'}
-        </h1>
-        {/* Show badges */}
-        {sharePermission === 'view' && (
-          <span className="absolute left-4 top-4 bg-yellow-400 text-gray-900 font-bold px-3 py-1 rounded-full shadow">Read Only</span>
-        )}
-        {!isOwner && sharePermission === 'edit' && (
-          <span className="absolute left-4 top-4 bg-blue-400 text-white font-bold px-3 py-1 rounded-full shadow">Edit Mode</span>
-        )}
-        {/* Refresh button in edit/owner mode if board changed */}
-        {showRefresh && sharePermission !== 'view' && (
-          <button
-            onClick={handleRefreshBoard}
-            className="absolute left-4 top-16 bg-green-500 hover:bg-green-600 text-white font-bold px-4 py-1 rounded-full shadow border border-green-700 transition-colors z-20"
-            style={{ minWidth: 100 }}
-          >
-            Refresh Board
-          </button>
-        )}
-        <div className="absolute top-4 right-4 flex items-center gap-4">
-          {/* Admin Dashboard button */}
-          {userRole === 'admin' && (
-            <button
-              onClick={() => navigate('/admin/dashboard')}
-              className="bg-purple-600 text-white rounded px-4 py-2 font-semibold shadow hover:bg-purple-700 transition-colors"
-              title="Go to Admin Dashboard"
-            >
-              Dashboard
-            </button>
-          )}
+      <header className="w-full py-4 bg-gradient-to-r from-gray-900 via-gray-800 to-black shadow-lg text-center relative flex items-center justify-center min-h-[64px]">
+        {/* Left: Profile Icon and Dashboard */}
+        <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-2">
           <button
             onClick={handleOpenSettings}
-            className="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center text-gray-700 text-xl font-bold shadow-md border-2 border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 overflow-hidden"
+            className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-blue-300 text-xl font-bold shadow border border-blue-400/20 focus:outline-none focus:ring-2 focus:ring-blue-400/30 overflow-hidden hover:bg-white/20 transition-all glass-btn"
             title="User Settings"
+            style={{ minWidth: 40 }}
           >
             {userAvatar ? (
               <img src={getAvatarUrl(userAvatar)} alt="Avatar" className="w-10 h-10 rounded-full object-cover" />
             ) : (
-              username ? username.charAt(0).toUpperCase() : '?'
+              settingsUsername ? settingsUsername.charAt(0).toUpperCase() : '?' 
             )}
           </button>
-          <button
-            onClick={handleLogout}
-            className="bg-white/90 text-gray-800 hover:bg-gray-200 hover:text-black px-4 py-2 rounded-full font-semibold shadow transition-colors border border-gray-300 hover:border-gray-400"
-          >
-            Logout
-          </button>
-          {/* Share button only for edit or owner, and only in header */}
-          {selectedBoard && isOwner && sharePermission !== 'view' && (
+          {userRole === 'admin' && (
             <button
-              onClick={isProPlus ? () => setShareOpen(true) : () => openUpgradeModal('Share', 'Pro+')}
-              className={`bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full font-semibold shadow border border-blue-700 transition-colors ml-2 ${isProPlus ? '' : 'opacity-50 cursor-not-allowed'}`}
-              title={isProPlus ? 'Share this board' : 'Share is not available for your plan.'}
-              type="button"
+              onClick={() => navigate('/admin/dashboard')}
+              className="flex items-center gap-1 px-4 py-2 rounded-full glass-btn bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 text-white font-semibold shadow text-sm hover:from-blue-600 hover:to-blue-800 transition-colors ml-2"
+              style={{ minWidth: 90 }}
+              title="Dashboard"
             >
-              Share
+              <FaTachometerAlt size={16} /> Dashboard
             </button>
           )}
+        </div>
+        {/* Center: Board Title */}
+        <h1 className="text-2xl font-extrabold text-white tracking-wide drop-shadow mx-auto">
+          {selectedBoard ? selectedBoard.name : 'Canvas Board'}
+        </h1>
+        {/* Right: Upgrade, Share, Logout */}
+        <div className="absolute top-1/2 right-6 -translate-y-1/2 flex items-center gap-2">
+          <button
+            onClick={() => navigate('/pricing')}
+            className="flex items-center gap-1 px-4 py-2 rounded-full glass-btn bg-white/10 text-blue-400 hover:text-blue-300 font-semibold shadow text-sm transition-colors"
+            style={{ minWidth: 80 }}
+            title="Upgrade"
+          >
+            <FaArrowUp size={16} /> Upgrade
+          </button>
+          <button
+            onClick={() => setShareOpen(true)}
+            className="flex items-center gap-1 px-4 py-2 rounded-full glass-btn bg-white/10 text-blue-400 hover:text-blue-300 font-semibold shadow text-sm transition-colors"
+            style={{ minWidth: 80 }}
+            title="Share"
+          >
+            <FaShareAlt size={16} /> Share
+          </button>
+          <button
+            onClick={() => { localStorage.removeItem('token'); navigate('/login'); }}
+            className="flex items-center gap-1 px-4 py-2 rounded-full glass-btn bg-white/10 text-gray-300 hover:text-white font-semibold shadow text-sm transition-colors"
+            style={{ minWidth: 80 }}
+            title="Logout"
+          >
+            <FaSignOutAlt size={16} /> Logout
+          </button>
         </div>
       </header>
       {/* Loading spinner for board area */}
@@ -1141,94 +1153,84 @@ const Whiteboard: React.FC = () => {
         <>
           {/* Board List and Create: only for owner, not for share links */}
           {isOwner && sharePermission !== 'view' && (
-            <div className="w-full flex flex-col md:flex-row items-center gap-2 px-8 mt-4">
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="font-semibold text-gray-900 flex items-center">
-                  Boards:
-                  {loadingBoards && (
-                    <span style={{ ...spinnerStyle, opacity: loadingBoards ? 1 : 0 }} aria-label="Loading" />
-                  )}
-                </span>
-                {!loadingBoards && boards.map((board) => (
-                  <div
-                    key={board._id}
-                    className="relative flex items-center mr-2 mb-2"
-                    onClick={() => handleSelectBoard(board)}
-                    role="button"
-                    tabIndex={0}
-                    style={{ cursor: 'pointer' }}
-                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleSelectBoard(board); }}
-                  >
+            <div className="w-full px-8 py-4">
+              <div className="flex items-center gap-4 mb-4">
+                <span className="text-blue-700 font-semibold">Boards:</span>
+                <div className="flex flex-wrap gap-2">
+                  {boards.map(board => (
                     <div
-                      className={`group flex items-center rounded-full border text-sm font-semibold transition-colors shadow-sm px-3 py-1 pr-2 min-w-0 max-w-full
-                        ${selectedBoard?._id === board._id
-                          ? 'bg-gray-900 text-white border-gray-900'
-                          : 'bg-white/80 text-gray-700 border-gray-300 hover:bg-gray-200 hover:text-gray-900'}
-                      `}
-                      style={{ minWidth: 0, maxWidth: 220 }}
+                      key={board._id}
+                      className={`relative group flex items-center rounded-full text-sm font-semibold transition-all shadow px-3 py-1.5 pr-2 bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-900 glass-btn`}
+                      style={{ minWidth: 80, maxWidth: 220, cursor: 'pointer' }}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleSelectBoard(board)}
                     >
-                      {/* Board name or input */}
-                      <span
-                        className={`truncate max-w-[110px] mr-2 ${selectedBoard?._id === board._id ? 'text-white' : 'text-gray-900'} cursor-pointer`}
-                        title={board.name}
-                      >
-                        {board._id === selectedBoard?._id ? selectedBoard?.name : board.name}
-                      </span>
-                      {/* Edit icon: only for owner */}
-                      {editingBoardId !== board._id && board.user === userId && (
-                        <button
-                          onClick={e => { e.stopPropagation(); startEditingBoard(board); }}
-                          className={`flex items-center justify-center w-7 h-7 rounded-full transition-colors duration-150 ml-0.5 mr-1
-                            ${selectedBoard?._id === board._id ? 'text-white hover:bg-gray-800 hover:text-blue-200' : 'text-gray-500 hover:bg-gray-200 hover:text-blue-700'}`}
-                          title="Edit board name"
-                          type="button"
-                          tabIndex={-1}
-                        >
-                          <PencilIcon className="w-4 h-4" />
-                        </button>
-                      )}
-                      {/* Delete icon: only for owner */}
-                      {board.user === userId && (
-                        <button
-                          onClick={e => { e.stopPropagation(); handleDeleteBoard(board._id); }}
-                          className={`flex items-center justify-center w-7 h-7 rounded-full transition-colors duration-150
-                            ${selectedBoard?._id === board._id
-                              ? 'text-white hover:bg-red-600 hover:text-white'
-                              : 'text-gray-500 hover:bg-red-500 hover:text-white'}`}
-                          title="Delete board"
-                          aria-label="Delete board"
-                          type="button"
-                          tabIndex={-1}
-                          style={{ fontSize: '1.1rem', lineHeight: 1 }}
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
+                      <span className="truncate max-w-[110px]">{board.name}</span>
+                      {isOwner && selectedBoard?._id === board._id && (
+                        <div className="flex items-center gap-1 ml-2">
+                          <button
+                            onClick={e => { e.stopPropagation(); startEditingBoard(board); }}
+                            className="p-1 text-blue-500 hover:text-blue-700 transition-colors"
+                            title="Edit board name"
+                          >
+                            <FaEdit size={13} />
+                          </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); handleDeleteBoard(board._id); }}
+                            className="p-1 text-red-500 hover:text-red-700 transition-colors"
+                            title="Delete board"
+                          >
+                            <FaTrash size={13} />
+                          </button>
+                        </div>
                       )}
                     </div>
-                  </div>
-                ))}
-              </div>
-              {/* Disable create new board for sharePermission 'edit' */}
-              {sharePermission !== 'edit' && (
-                <div className="flex gap-2 items-center ml-auto">
+                  ))}
+                </div>
+                {/* Create new board */}
+                <div className="ml-auto flex items-center gap-2">
                   <input
                     type="text"
-                    value={newBoardName}
-                    onChange={(e) => setNewBoardName(e.target.value)}
                     placeholder="New board name"
-                    className="p-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white text-gray-900 placeholder-gray-400 shadow-sm"
-                    disabled={boardLimitReached}
+                    className="px-4 py-1.5 rounded-full bg-blue-50 text-blue-700 placeholder-blue-400 border border-blue-200 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200 shadow glass-btn"
+                    value={newBoardName}
+                    onChange={e => setNewBoardName(e.target.value)}
+                    style={{ minWidth: 140 }}
                   />
                   <button
-                    onClick={boardLimitReached ? () => openUpgradeModal('Create Board', isBasic ? 'Pro' : 'Pro+') : handleCreateBoard}
-                    className={`bg-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-300 ${(boardLimitReached) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 text-gray-900'}`}
-                    title={isBasic ? (boardLimitReached ? 'Basic users can only create 2 boards.' : '') : isPro ? (boardLimitReached ? 'Pro users can only create 5 boards.' : '') : ''}
-                    type="button"
+                    onClick={handleCreateBoard}
+                    className="px-4 py-1.5 rounded-full glass-btn bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold shadow text-sm transition-colors"
+                    style={{ minWidth: 80 }}
                   >
                     + Create
                   </button>
                 </div>
-              )}
+                {/* Save, Download, Reset */}
+                <div className="flex items-center gap-2 ml-4">
+                  <button
+                    onClick={saveBoardContent}
+                    className="flex items-center gap-1 px-4 py-1.5 rounded-full glass-btn bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold shadow text-sm transition-colors"
+                    style={{ minWidth: 80 }}
+                  >
+                    <span className="font-bold">Save</span>
+                  </button>
+                  <button
+                    onClick={() => handleDownloadBoard('png')}
+                    className="flex items-center gap-1 px-4 py-1.5 rounded-full glass-btn bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold shadow text-sm transition-colors"
+                    style={{ minWidth: 80 }}
+                  >
+                    <span className="font-bold">Download</span>
+                  </button>
+                  <button
+                    onClick={handleReset}
+                    className="flex items-center gap-1 px-4 py-1.5 rounded-full glass-btn bg-red-100 text-red-600 hover:bg-red-200 font-semibold shadow text-sm transition-colors"
+                    style={{ minWidth: 80 }}
+                  >
+                    <span className="font-bold">Reset</span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
           {/* Error and Saving */}
@@ -1236,35 +1238,6 @@ const Whiteboard: React.FC = () => {
             <div className="w-full flex justify-center mt-2">
               {error && <span className="text-red-500 font-medium">{error}</span>}
               {saving && <span className="text-blue-500 ml-4">Saving...</span>}
-            </div>
-          )}
-          {/* Reset Button Row */}
-          {sharePermission !== 'view' && (
-            <div className="w-full flex justify-end gap-2 px-8 mt-2">
-              <button
-                onClick={saveBoardContent}
-                className="flex items-center gap-2 bg-[#23272f] hover:bg-[#2d323c] text-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-700"
-                disabled={sharePermission === 'view' || saving}
-              >
-                <SaveIcon className="w-5 h-5" />
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-              <button
-                onClick={isBasic ? () => openUpgradeModal('Download', 'Pro/Pro+') : () => handleDownloadBoard('png')}
-                className={`flex items-center gap-2 bg-[#23272f] text-white font-bold px-4 py-2 rounded-full shadow transition border border-gray-700 ${isBasic ? 'opacity-70' : 'hover:bg-[#2d323c]'}`}
-                title={isBasic ? 'Download is not available for Basic users.' : 'Download board as image'}
-              >
-                <DownloadIcon className="w-5 h-5" />
-                Download
-              </button>
-              <button
-                onClick={isBasic ? () => openUpgradeModal('Reset Board', 'Pro/Pro+') : handleReset}
-                className={`flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-full shadow transition ${isBasic ? 'opacity-70' : ''}`}
-                title={isBasic ? 'Reset is not available for Basic users.' : ''}
-              >
-                <TrashIcon className="w-5 h-5" />
-                Reset
-              </button>
             </div>
           )}
           {/* Main Content */}
@@ -1721,11 +1694,13 @@ const Whiteboard: React.FC = () => {
           settingsPassword={settingsPassword}
           setSettingsPassword={setSettingsPassword}
           settingsAvatarPreview={settingsAvatarPreview}
+          setSettingsAvatarPreview={setSettingsAvatarPreview}
           userAvatar={userAvatar}
           handleAvatarChange={handleAvatarChange}
           settingsError={settingsError}
           settingsSuccess={settingsSuccess}
           settingsChanged={settingsChanged}
+          setSettingsChanged={setSettingsChanged}
           settingsLoading={settingsLoading}
           handleSaveSettings={handleSaveSettings}
           passwordInputRef={passwordInputRef}
@@ -1733,6 +1708,8 @@ const Whiteboard: React.FC = () => {
           showPasswordInput={showPasswordInput}
           setShowPasswordInput={setShowPasswordInput}
           plan={userPlan}
+          setSettingsAvatar={setSettingsAvatar}
+          setSettingsAvatarFile={setSettingsAvatarFile}
         />
       )}
       {/* Share Modal: only for owner, not for sharePermission 'edit' */}
