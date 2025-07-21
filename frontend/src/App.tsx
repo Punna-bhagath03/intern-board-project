@@ -16,6 +16,7 @@ import PlansRoles from './pages/PlansRoles';
 import api from './api';
 import { useNotification } from './NotificationContext';
 import BoardRedirector from './components/BoardRedirector';
+import Pricing from './pages/Pricing';
 
 function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) {
   const token = localStorage.getItem('token');
@@ -140,6 +141,7 @@ function App() {
             <PlansRoles />
           </ProtectedRoute>
         } />
+        <Route path="/pricing" element={<Pricing />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
