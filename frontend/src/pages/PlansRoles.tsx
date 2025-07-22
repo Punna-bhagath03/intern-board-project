@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
-import { FaUser, FaUserCheck, FaUserTimes } from 'react-icons/fa';
+import { FaUser, FaArrowLeft, FaSearch, FaCheck, FaTimes } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useNotification } from '../NotificationContext';
 
@@ -72,7 +72,6 @@ const PlansRoles: React.FC = () => {
       const res = await api.put(`/api/admin/user/${id}/plan-role`, { role, plan });
       
       if (res.data.requiresReload) {
-        // Show success message
         showNotification('User updated successfully. The user will need to refresh their page.', 'success');
       }
       
@@ -91,7 +90,6 @@ const PlansRoles: React.FC = () => {
     return now - last < 600000;
   };
 
-  // Sort: active and latest login first
   const sortedUsers = [...users].sort((a, b) => {
     const aActive = isUserActive(a);
     const bActive = isUserActive(b);
@@ -109,130 +107,167 @@ const PlansRoles: React.FC = () => {
   const totalPages = Math.ceil(filteredUsers.length / PAGE_SIZE);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 text-white flex flex-col items-center p-8">
-      <div className="w-full max-w-6xl flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-center">Plans & Roles</h1>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 text-white">
+      {/* Top Bar */}
+      <div className="flex items-center justify-between px-8 py-4 bg-gray-800/50 backdrop-blur-md border-b border-gray-700">
+        <div className="flex items-center gap-3">
+          <div className="text-2xl text-blue-400">
+            <FaUser />
+          </div>
+          <span className="text-xl font-bold tracking-wide">Plans & Roles</span>
+        </div>
         <button
           onClick={() => navigate('/admin/dashboard')}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/30 backdrop-blur-md text-white px-6 py-2.5 rounded-lg font-semibold shadow-lg shadow-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-400/50 border border-blue-400/20 transition-all duration-300"
         >
+          <FaArrowLeft />
           Back to dashboard
         </button>
       </div>
-      <div className="w-full max-w-6xl bg-gray-900 rounded-2xl shadow-lg p-6 border border-gray-700">
-        <div className="mb-6 flex items-center justify-between">
-          <input
-            type="text"
-            placeholder="Search users..."
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
-            className="border border-gray-700 bg-gray-800 text-white rounded px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            aria-label="Search users"
-          />
-        </div>
-        <div className="overflow-x-auto rounded-lg">
-          <table className="min-w-full text-sm bg-gray-900">
-            <thead>
-              <tr className="bg-gray-800 text-blue-300">
-                <th className="py-3 px-4 text-left">username</th>
-                <th className="py-3 px-4 text-left">status</th>
-                <th className="py-3 px-4 text-left">Role</th>
-                <th className="py-3 px-4 text-left">Plan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={4} className="text-center py-8 text-blue-200">Loading...</td></tr>
-              ) : error ? (
-                <tr><td colSpan={4} className="text-center py-8 text-red-400">{error}</td></tr>
-              ) : paginatedUsers.length === 0 ? (
-                <tr><td colSpan={4} className="text-center py-8 text-gray-400">No users found.</td></tr>
-              ) : paginatedUsers.map(user => (
-                <tr key={user._id} className="border-b border-gray-800 hover:bg-gray-800 transition group">
-                  <td className="py-3 px-4 font-semibold flex items-center gap-2">
-                    <FaUser className="text-blue-400" /> {user.username}
-                  </td>
-                  <td className="py-3 px-4">
-                    {isUserActive(user) ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-900 text-green-300 text-xs font-bold">
-                        <FaUserCheck /> active
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-700 text-gray-300 text-xs font-bold">
-                        <FaUserTimes /> deactive
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 capitalize">
-                    {currentUserRole === 'admin' ? (
-                      <select
-                        value={editState[user._id]?.role ?? user.role}
-                        onChange={e => handleEditChange(user._id, 'role', e.target.value)}
-                        className="bg-gray-800 text-white rounded px-2 py-1 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        disabled={editState[user._id]?.loading}
-                      >
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    ) : (
-                      user.role
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-blue-200">
-                    {currentUserRole === 'admin' ? (
-                      <>
-                        <select
-                          value={editState[user._id]?.plan ?? user.plan ?? (user.role === 'admin' ? 'Pro+' : 'Basic')}
-                          onChange={e => handleEditChange(user._id, 'plan', e.target.value)}
-                          className="bg-gray-800 text-white rounded px-2 py-1 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                          disabled={editState[user._id]?.loading}
-                        >
-                          <option value="Basic">Basic</option>
-                          <option value="Pro">Pro</option>
-                          <option value="Pro+">Pro+</option>
-                        </select>
+
+      {/* Main Content */}
+      <div className="p-8">
+        <div className="bg-gray-900/50 backdrop-blur-md rounded-2xl shadow-lg border border-gray-700 overflow-hidden">
+          {/* Search Bar */}
+          <div className="p-6 border-b border-gray-700">
+            <div className="relative max-w-md">
+              <input
+                type="text"
+                placeholder="Search users..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-gray-800/50 backdrop-blur-md text-white px-4 py-2 pl-10 rounded-lg border border-gray-600/50 focus:outline-none focus:border-blue-500/50 transition-all duration-300"
+              />
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                <FaSearch />
+              </div>
+            </div>
+          </div>
+
+          {/* Users Table */}
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="w-10 h-10 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : error ? (
+            <div className="text-red-500 text-center p-8">{error}</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-800/50">
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-blue-300">Username</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-blue-300">Current Role</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-blue-300">Current Plan</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-blue-300">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/50">
+                  {paginatedUsers.map(user => (
+                    <tr key={user._id} className="group hover:bg-gray-800/30 transition-colors duration-200">
+                      <td className="px-6 py-4 font-medium">{user.username}</td>
+                      <td className="px-6 py-4">
+                        {currentUserRole === 'admin' ? (
+                          <select
+                            value={editState[user._id]?.role ?? user.role}
+                            onChange={e => handleEditChange(user._id, 'role', e.target.value)}
+                            className="bg-gray-800/50 backdrop-blur-md text-white px-3 py-1.5 rounded-lg border border-gray-600/50 focus:outline-none focus:border-blue-500/50 transition-all duration-200"
+                            disabled={editState[user._id]?.loading}
+                          >
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        ) : (
+                          <span className={`px-3 py-1 rounded-full text-sm ${
+                            user.role === 'admin' 
+                              ? 'bg-blue-500/20 text-blue-300 border border-blue-500/20' 
+                              : 'bg-gray-700/20 text-gray-300 border border-gray-600/20'
+                          }`}>
+                            {user.role}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {currentUserRole === 'admin' ? (
+                          <select
+                            value={editState[user._id]?.plan ?? user.plan ?? (user.role === 'admin' ? 'Pro+' : 'Basic')}
+                            onChange={e => handleEditChange(user._id, 'plan', e.target.value)}
+                            className="bg-gray-800/50 backdrop-blur-md text-white px-3 py-1.5 rounded-lg border border-gray-600/50 focus:outline-none focus:border-blue-500/50 transition-all duration-200"
+                            disabled={editState[user._id]?.loading}
+                          >
+                            <option value="Basic">Basic</option>
+                            <option value="Pro">Pro</option>
+                            <option value="Pro+">Pro+</option>
+                          </select>
+                        ) : (
+                          <span className={`px-3 py-1 rounded-full text-sm ${
+                            user.plan === 'Pro+' 
+                              ? 'bg-blue-500/20 text-blue-300 border border-blue-500/20'
+                              : user.plan === 'Pro'
+                                ? 'bg-blue-400/20 text-blue-200 border border-blue-400/20'
+                                : 'bg-gray-700/20 text-gray-300 border border-gray-600/20'
+                          }`}>
+                            {user.plan ?? (user.role === 'admin' ? 'Pro+' : 'Basic')}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
                         {editState[user._id] &&
-                          (editState[user._id]?.role !== user.role || (editState[user._id]?.plan ?? (user.role === 'admin' ? 'Pro+' : 'Basic')) !== (user.plan ?? (user.role === 'admin' ? 'Pro+' : 'Basic')))
-                          && (
+                          (editState[user._id]?.role !== user.role || 
+                           editState[user._id]?.plan !== (user.plan ?? (user.role === 'admin' ? 'Pro+' : 'Basic'))) && (
+                          <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleSave(user._id)}
-                              className="ml-2 px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white font-semibold disabled:opacity-50"
+                              className="bg-green-500/20 hover:bg-green-500/30 text-white px-4 py-1.5 rounded-lg text-sm font-medium border border-green-400/20 transition-all duration-200 flex items-center gap-2"
                               disabled={editState[user._id]?.loading}
                             >
-                              {editState[user._id]?.loading ? <span className='inline-block w-4 h-4 border-2 border-white border-t-blue-500 rounded-full animate-spin align-middle' /> : 'Save'}
+                              {editState[user._id]?.loading ? (
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <FaCheck />
+                              )}
+                              Save
                             </button>
-                          )
-                        }
-                      </>
-                    ) : (
-                      user.plan || (user.role === 'admin' ? 'Pro+' : 'Basic')
-                    )}
-                  </td>
-                </tr>
+                            <button
+                              onClick={() => {
+                                const newEditState = { ...editState };
+                                delete newEditState[user._id];
+                                setEditState(newEditState);
+                              }}
+                              className="bg-red-500/20 hover:bg-red-500/30 text-white px-4 py-1.5 rounded-lg text-sm font-medium border border-red-400/20 transition-all duration-200 flex items-center gap-2"
+                            >
+                              <FaTimes />
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {!loading && !error && totalPages > 1 && (
+            <div className="flex justify-center items-center gap-2 p-4 border-t border-gray-700">
+              {Array.from({ length: totalPages }, (_, i) => (
+                <button
+                  key={i + 1}
+                  onClick={() => setPage(i + 1)}
+                  className={`px-3 py-1 rounded ${
+                    page === i + 1
+                      ? 'bg-blue-600/20 text-white border border-blue-400/20'
+                      : 'bg-gray-800/50 text-gray-400 border border-gray-700 hover:bg-gray-700/50'
+                  } transition-all duration-200`}
+                >
+                  {i + 1}
+                </button>
               ))}
-            </tbody>
-          </table>
+            </div>
+          )}
         </div>
-        {/* Pagination controls */}
-        {totalPages > 1 && (
-          <div className="flex justify-center mt-6 gap-2">
-            <button
-              onClick={() => setPage(page - 1)}
-              disabled={page === 1}
-              className="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 text-blue-200 disabled:opacity-50"
-            >
-              Prev
-            </button>
-            <span className="px-2">Page {page} of {totalPages}</span>
-            <button
-              onClick={() => setPage(page + 1)}
-              disabled={page === totalPages}
-              className="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 text-blue-200 disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
