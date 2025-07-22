@@ -1,15 +1,14 @@
-import React, { useState } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
+import api from '../api';
 
 interface ShareModalProps {
   boardId: string;
   open: boolean;
   onClose: () => void;
+  userPlan?: string;
 }
 
-const API_URL = 'http://localhost:5001/api';
-
-const ShareModal: React.FC<ShareModalProps> = ({ boardId, open, onClose }) => {
+const ShareModal: React.FC<ShareModalProps> = ({ boardId, open, onClose, userPlan }) => {
   const [permission, setPermission] = useState<'view' | 'edit'>('view');
   const [expiresIn, setExpiresIn] = useState<number>(60);
   const [expiresUnit, setExpiresUnit] = useState<'minutes' | 'hours'>('minutes');
@@ -17,30 +16,65 @@ const ShareModal: React.FC<ShareModalProps> = ({ boardId, open, onClose }) => {
   const [error, setError] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [shareToken, setShareToken] = useState<string | null>(null);
 
+  // Reset state when modal opens
+  useEffect(() => {
+    if (open) {
+      setError(null);
+      setShareLink(null);
+      setCopied(false);
+      setPermission('view');
+      setExpiresIn(60);
+      setExpiresUnit('minutes');
+    }
+  }, [open]);
+
+  // Check if user can share (Pro+ plan required)
   if (!open) return null;
+  if (userPlan !== 'Pro+') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+        <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
+          <button
+            className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ×
+          </button>
+          <h2 className="text-xl font-bold mb-4">Share Board</h2>
+          <p className="text-gray-600 mb-4">
+            Sharing is a Pro+ feature. Please upgrade your plan to share boards.
+          </p>
+          <button
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+            onClick={() => window.location.href = '/pricing'}
+          >
+            Upgrade to Pro+
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleGenerate = async () => {
     setLoading(true);
     setError(null);
     setShareLink(null);
-    setShareToken(null);
     setCopied(false);
     try {
-      const token = localStorage.getItem('token');
-      const res = await api.post(
-        `/api/boards/${boardId}/share`,
-        { permission, expiresIn, expiresUnit }
-      );
-      // Extract token from response
-      const tokenValue = res.data.token || (res.data.link && res.data.link.split('/').pop());
-      if (tokenValue) {
-        setShareToken(tokenValue);
-        const frontendLink = `${window.location.origin}/join?token=${tokenValue}`;
-        setShareLink(frontendLink);
+      const res = await api.post(`/api/boards/${boardId}/share`, {
+        permission,
+        expiresIn,
+        expiresUnit
+      });
+
+      if (res.data.token) {
+        const shareUrl = new URL('/join', window.location.origin);
+        shareUrl.searchParams.set('token', res.data.token);
+        setShareLink(shareUrl.toString());
       } else {
-        setError('Failed to extract share token');
+        setError('Failed to generate share link');
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to generate link');
@@ -48,11 +82,15 @@ const ShareModal: React.FC<ShareModalProps> = ({ boardId, open, onClose }) => {
     setLoading(false);
   };
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     if (shareLink) {
-      navigator.clipboard.writeText(shareLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      try {
+        await navigator.clipboard.writeText(shareLink);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      } catch (err) {
+        setError('Failed to copy link to clipboard');
+      }
     }
   };
 
@@ -120,7 +158,11 @@ const ShareModal: React.FC<ShareModalProps> = ({ boardId, open, onClose }) => {
                 readOnly
               />
               <button
-                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-3 py-2 rounded"
+                className={`${
+                  copied 
+                    ? 'bg-green-500 text-white' 
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                } font-semibold px-3 py-2 rounded transition-colors`}
                 onClick={handleCopy}
                 type="button"
               >
