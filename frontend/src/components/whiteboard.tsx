@@ -94,6 +94,7 @@ interface SettingsModalProps {
   plan: string;
   setSettingsAvatar: (v: string | null) => void;
   setSettingsAvatarFile: (v: File | null) => void;
+  setUserAvatar: (v: string | null) => void;
 }
 
 function SettingsModal({
@@ -119,6 +120,7 @@ function SettingsModal({
   plan,
   setSettingsAvatar,
   setSettingsAvatarFile,
+  setUserAvatar,
 }: SettingsModalProps) {
   const hasFocusedRef = useRef(false);
   useEffect(() => {
@@ -157,14 +159,20 @@ function SettingsModal({
           <div>
             <label className="block text-sm font-semibold mb-1">Avatar</label>
             <div className="flex items-center gap-4">
-              {settingsAvatarPreview || userAvatar ? (
+              {(settingsAvatarPreview || userAvatar) ? (
                 <div className="relative">
                   <img src={settingsAvatarPreview || getAvatarUrl(userAvatar)} alt="Avatar" className="w-16 h-16 rounded-full border object-cover" />
                   <button
                     type="button"
                     className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center shadow border-2 border-white"
                     title="Remove photo"
-                    onClick={() => { setSettingsAvatarPreview(null); setSettingsAvatarFile(null); setSettingsAvatar(null); setSettingsChanged(true); }}
+                    onClick={() => {
+                      setSettingsAvatarPreview(null);
+                      setSettingsAvatarFile(null);
+                      setSettingsAvatar(null);
+                      setUserAvatar(null); // Immediately update profile icon
+                      setSettingsChanged(true);
+                    }}
                   >
                     &times;
                   </button>
@@ -612,19 +620,12 @@ const Whiteboard: React.FC = () => {
     }
     setEditSaving(true);
     try {
-      const res = await fetch(`${API_URL}/boards/${board._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ name: editBoardName }),
-      });
-      if (!res.ok) throw new Error('Failed to update board name');
-      const updated = await res.json();
-      setBoards(prev => prev.map(b => b._id === board._id ? { ...b, name: updated.name } : b));
-      if (selectedBoard && selectedBoard._id === board._id) {
-        setSelectedBoard({ ...selectedBoard, name: updated.name });
+      const res = await api.put(`/api/boards/${board._id}`, { name: editBoardName }, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.data) {
+        setBoards(prev => prev.map(b => b._id === board._id ? { ...b, name: res.data.name } : b));
+        if (selectedBoard && selectedBoard._id === board._id) {
+          setSelectedBoard({ ...selectedBoard, name: res.data.name });
+        }
       }
       setEditingBoardId(null);
     } catch (err) {
@@ -904,6 +905,8 @@ const Whiteboard: React.FC = () => {
       formData.append('username', settingsUsername);
       if (settingsPassword) formData.append('password', settingsPassword);
       if (settingsAvatarFile) formData.append('avatar', settingsAvatarFile);
+      // If avatar is null and no preview and no file, send a flag to remove avatar
+      if (!settingsAvatar && !settingsAvatarPreview && !settingsAvatarFile) formData.append('removeAvatar', 'true');
       const res = await api.patch(
         `http://localhost:5001/api/users/${userId}`,
         formData,
@@ -917,15 +920,19 @@ const Whiteboard: React.FC = () => {
         setSettingsSuccess('Profile updated!');
         setSettingsOpen(false);
         setSettingsChanged(false);
-        setUserAvatar(res.data.avatar || null);
-        setSettingsAvatar(res.data.avatar || null);
+        setSettingsAvatarPreview(null);
+        setSettingsAvatarFile(null);
         setSettingsUsername(res.data.username);
         setSettingsPassword('');
         setShowPasswordInput(false);
         localStorage.setItem('username', res.data.username);
         if (res.data.avatar) {
+          setUserAvatar(res.data.avatar);
+          setSettingsAvatar(res.data.avatar);
           localStorage.setItem('avatar', res.data.avatar);
         } else {
+          setUserAvatar(null);
+          setSettingsAvatar(null);
           localStorage.removeItem('avatar');
         }
       }
@@ -1127,10 +1134,11 @@ const Whiteboard: React.FC = () => {
             <FaArrowUp size={16} /> Upgrade
           </button>
           <button
-            onClick={() => setShareOpen(true)}
-            className="flex items-center gap-1 px-4 py-2 rounded-full glass-btn bg-white/10 text-blue-400 hover:text-blue-300 font-semibold shadow text-sm transition-colors"
+            onClick={isProPlus ? () => setShareOpen(true) : () => openUpgradeModal('Share', 'Pro+')}
+            className={`flex items-center gap-1 px-4 py-2 rounded-full glass-btn font-semibold shadow text-sm transition-colors ${isProPlus ? 'bg-white/10 text-blue-400 hover:text-blue-300' : 'bg-white/10 text-blue-200 cursor-not-allowed opacity-60'}`}
             style={{ minWidth: 80 }}
-            title="Share"
+            title={isProPlus ? 'Share this board' : 'Share is not available for your plan.'}
+            disabled={!isProPlus}
           >
             <FaShareAlt size={16} /> Share
           </button>
@@ -1166,7 +1174,20 @@ const Whiteboard: React.FC = () => {
                       tabIndex={0}
                       onClick={() => handleSelectBoard(board)}
                     >
-                      <span className="truncate max-w-[110px]">{board.name}</span>
+                      {editingBoardId === board._id ? (
+                        <input
+                          type="text"
+                          value={editBoardName}
+                          onChange={e => setEditBoardName(e.target.value)}
+                          onBlur={() => saveBoardName(board)}
+                          onKeyDown={e => handleEditInputKey(e, board)}
+                          className="px-2 py-1 rounded bg-white border border-blue-200 text-blue-900 font-semibold w-32 mr-2"
+                          autoFocus
+                          disabled={editSaving}
+                        />
+                      ) : (
+                        <span className="truncate max-w-[110px]">{board.name}</span>
+                      )}
                       {isOwner && selectedBoard?._id === board._id && (
                         <div className="flex items-center gap-1 ml-2">
                           <button
@@ -1199,9 +1220,11 @@ const Whiteboard: React.FC = () => {
                     style={{ minWidth: 140 }}
                   />
                   <button
-                    onClick={handleCreateBoard}
-                    className="px-4 py-1.5 rounded-full glass-btn bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold shadow text-sm transition-colors"
+                    onClick={boardLimitReached ? () => openUpgradeModal('Create Board', isBasic ? 'Pro' : 'Pro+') : handleCreateBoard}
+                    className={`px-4 py-1.5 rounded-full glass-btn font-semibold shadow text-sm transition-colors ${(boardLimitReached) ? 'bg-blue-50 text-blue-300 cursor-not-allowed' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
                     style={{ minWidth: 80 }}
+                    disabled={boardLimitReached}
+                    title={isBasic ? (boardLimitReached ? 'Basic users can only create 2 boards.' : '') : isPro ? (boardLimitReached ? 'Pro users can only create 5 boards.' : '') : ''}
                   >
                     + Create
                   </button>
@@ -1216,16 +1239,20 @@ const Whiteboard: React.FC = () => {
                     <span className="font-bold">Save</span>
                   </button>
                   <button
-                    onClick={() => handleDownloadBoard('png')}
-                    className="flex items-center gap-1 px-4 py-1.5 rounded-full glass-btn bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold shadow text-sm transition-colors"
+                    onClick={isBasic ? () => openUpgradeModal('Download', 'Pro/Pro+') : () => handleDownloadBoard('png')}
+                    className={`flex items-center gap-1 px-4 py-1.5 rounded-full glass-btn font-semibold shadow text-sm transition-colors ${isBasic ? 'bg-blue-50 text-blue-300 cursor-not-allowed' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
                     style={{ minWidth: 80 }}
+                    disabled={isBasic}
+                    title={isBasic ? 'Download is not available for Basic users.' : ''}
                   >
                     <span className="font-bold">Download</span>
                   </button>
                   <button
-                    onClick={handleReset}
-                    className="flex items-center gap-1 px-4 py-1.5 rounded-full glass-btn bg-red-100 text-red-600 hover:bg-red-200 font-semibold shadow text-sm transition-colors"
+                    onClick={isBasic ? () => openUpgradeModal('Reset', 'Pro/Pro+') : handleReset}
+                    className={`flex items-center gap-1 px-4 py-1.5 rounded-full glass-btn font-semibold shadow text-sm transition-colors ${isBasic ? 'bg-red-50 text-red-300 cursor-not-allowed' : 'bg-red-100 text-red-600 hover:bg-red-200'}`}
                     style={{ minWidth: 80 }}
+                    disabled={isBasic}
+                    title={isBasic ? 'Reset is not available for Basic users.' : ''}
                   >
                     <span className="font-bold">Reset</span>
                   </button>
@@ -1668,13 +1695,17 @@ const Whiteboard: React.FC = () => {
                   >
                     <FramesSection
                       onAddFrame={src => {
+                        if (isBasic) {
+                          openUpgradeModal('Frames', 'Pro/Pro+');
+                          return;
+                        }
                         if (isPro && frameLimitReached) {
                           openUpgradeModal('More Frames', 'Pro+');
                           return;
                         }
                         handleAddFrameToBoard(src);
                       }}
-                      disableAdd={isPro && frameLimitReached}
+                      disableAdd={isBasic || (isPro && frameLimitReached)}
                       onUpgradeClick={() => openUpgradeModal(isBasic ? 'Frames' : 'More Frames', isBasic ? 'Pro/Pro+' : 'Pro+')}
                     />
                   </div>
@@ -1710,6 +1741,7 @@ const Whiteboard: React.FC = () => {
           plan={userPlan}
           setSettingsAvatar={setSettingsAvatar}
           setSettingsAvatarFile={setSettingsAvatarFile}
+          setUserAvatar={setUserAvatar}
         />
       )}
       {/* Share Modal: only for owner, not for sharePermission 'edit' */}
