@@ -2,6 +2,7 @@ const express = require('express');
 const User = require('../models/User');
 const Board = require('../models/Board');
 const mongoose = require('mongoose');
+const { sendMail } = require('../utils/mailer');
 
 // Auth middleware (copy from index.js or import if refactored)
 function authenticateToken(req, res, next) {
@@ -96,28 +97,69 @@ router.put('/user/:id/plan-role', authenticateToken, isAdminMiddleware, async (r
   const validRoles = ['user', 'admin'];
   const update = {};
   let shouldInvalidate = false;
+
   try {
     const userToUpdate = await User.findById(req.params.id);
     if (!userToUpdate) return res.status(404).json({ message: 'User not found' });
+    
     if (userToUpdate.username === 'bhagath') {
       return res.status(403).json({ message: 'Cannot change role or plan of bhagath. This user is protected.' });
     }
+
     if (plan) {
       if (!validPlans.includes(plan)) return res.status(400).json({ message: 'Invalid plan' });
       update.plan = plan;
       shouldInvalidate = true;
+
+      // Send email notification for plan update
+      if (userToUpdate.email) {
+        try {
+          const { sendMail } = require('../utils/mailer');
+          await sendMail({
+            to: userToUpdate.email,
+            subject: 'Your Plan Has Been Updated',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #3b82f6;">Plan Update Notification</h2>
+                <p>Hi ${userToUpdate.username},</p>
+                <p>Your plan has been updated to <strong>${plan}</strong>.</p>
+                <p>You now have access to all features included in the ${plan} plan.</p>
+                <p style="color: #666;">This is an automated notification. Please do not reply to this email.</p>
+              </div>
+            `
+          });
+        } catch (emailErr) {
+          console.error('Failed to send plan update email:', emailErr);
+        }
+      }
     }
+
     if (role) {
       if (!validRoles.includes(role)) return res.status(400).json({ message: 'Invalid role' });
       update.role = role;
       shouldInvalidate = true;
     }
+
     if (!plan && !role) return res.status(400).json({ message: 'No plan or role provided' });
+
     if (shouldInvalidate) {
       update.$inc = { tokenVersion: 1 };
     }
-    const user = await User.findByIdAndUpdate(req.params.id, update, { new: true, select: '-password' });
-    res.json({ message: 'User updated', user });
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id, 
+      update, 
+      { new: true, select: '-password' }
+    );
+
+    // Broadcast plan update to connected clients (if using WebSocket)
+    // You might want to implement this later
+
+    res.json({ 
+      message: 'User updated', 
+      user,
+      requiresReload: shouldInvalidate 
+    });
   } catch (err) {
     res.status(500).json({ message: 'Failed to update user', error: err.message });
   }
@@ -168,6 +210,26 @@ router.get('/user/:id/decors', authenticateToken, isAdminMiddleware, async (req,
     res.json(decors);
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch decors' });
+  }
+});
+
+// POST /api/admin/send-mail — Send a custom email via admin panel
+router.post('/send-mail', authenticateToken, isAdminMiddleware, async (req, res) => {
+  const { to, subject, message } = req.body;
+  if (!to || !subject || !message) {
+    return res.status(400).json({ message: 'to, subject, and message are required' });
+  }
+  // Check if the 'to' email exists in the User collection and is not null
+  const user = await User.findOne({ email: to });
+  if (!user || !user.email) {
+    return res.status(400).json({ message: 'Recipient email does not exist in the system.' });
+  }
+  try {
+    await sendMail({ to, subject, html: message });
+    res.json({ message: 'Email sent successfully' });
+  } catch (err) {
+    console.error('Failed to send email:', err);
+    res.status(500).json({ message: 'Failed to send email', error: err.message });
   }
 });
 

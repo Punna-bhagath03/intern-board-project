@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../api';
 import { FaUser, FaUserCheck, FaUserTimes } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
+import { useNotification } from '../NotificationContext';
 
 interface User {
   _id: string;
@@ -21,6 +22,7 @@ const PlansRoles: React.FC = () => {
   const navigate = useNavigate();
   const [currentUserRole, setCurrentUserRole] = useState<string>('');
   const [editState, setEditState] = useState<{[id: string]: {role: string, plan: string, loading: boolean}}>(() => ({}));
+  const { showNotification } = useNotification();
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -66,13 +68,18 @@ const PlansRoles: React.FC = () => {
   const handleSave = async (id: string) => {
     setEditState(prev => ({ ...prev, [id]: { ...prev[id], loading: true } }));
     try {
-      const token = localStorage.getItem('token');
       const { role, plan } = editState[id];
       const res = await api.put(`/api/admin/user/${id}/plan-role`, { role, plan });
+      
+      if (res.data.requiresReload) {
+        // Show success message
+        showNotification('User updated successfully. The user will need to refresh their page.', 'success');
+      }
+      
       setUsers(prev => prev.map(u => u._id === id ? { ...u, ...res.data.user } : u));
       setEditState(prev => { const copy = { ...prev }; delete copy[id]; return copy; });
     } catch (err) {
-      alert('Failed to update user');
+      showNotification('Failed to update user', 'error');
       setEditState(prev => ({ ...prev, [id]: { ...prev[id], loading: false } }));
     }
   };
