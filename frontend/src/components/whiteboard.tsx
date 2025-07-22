@@ -1833,6 +1833,7 @@ const Whiteboard: React.FC = () => {
           boardId={selectedBoard._id}
           open={shareOpen}
           onClose={() => setShareOpen(false)}
+          userPlan={userPlan}
         />
       )}
       {/* Upgrade Modal */}
