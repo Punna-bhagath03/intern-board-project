@@ -8,6 +8,8 @@ const fs = require('fs');
 const path = require('path');
 const ShareLink = require('../models/ShareLink');
 const crypto = require('crypto');
+const { sendMail } = require('../utils/mailer');
+const User = require('../models/User');
 
 const router = express.Router();
 
@@ -48,12 +50,10 @@ router.get('/boards/latest', authenticateToken, async (req, res) => {
 // POST /boards - create a new board
 router.post('/boards', authenticateToken, async (req, res) => {
   const { name, content } = req.body;
-  if (!name ) {
-    return res.status(400).json({ message: 'Name is  required.' });
+  if (!name) {
+    return res.status(400).json({ message: 'Name is required.' });
   }
   try {
-    // Enforce board limit for Basic and Pro users
-    const User = require('../models/User');
     const user = await User.findById(req.user.userId);
     if (user) {
       if (user.plan === 'Basic') {
@@ -74,6 +74,29 @@ router.post('/boards', authenticateToken, async (req, res) => {
       content
     });
     await board.save();
+
+    // Send email notification if user has email
+    if (user && user.email) {
+      try {
+        await sendMail({
+          to: user.email,
+          subject: 'New Board Created',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #3b82f6;">New Board Created!</h2>
+              <p>Hi ${user.username},</p>
+              <p>A new board named <strong>${name}</strong> has been created for you.</p>
+              <p>You can access your board by logging into your account.</p>
+              <p style="color: #666;">This is an automated notification. Please do not reply to this email.</p>
+            </div>
+          `
+        });
+      } catch (emailErr) {
+        console.error('Failed to send email notification:', emailErr);
+        // Don't fail the request if email fails
+      }
+    }
+
     res.status(201).json(board);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -160,22 +183,50 @@ router.put('/boards/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// DELETE /boards/:id - delete a board if it belongs to the user
+// DELETE /boards/:id - delete a board
 router.delete('/boards/:id', authenticateToken, async (req, res) => {
   try {
     const board = await Board.findById(req.params.id);
     if (!board) return res.status(404).json({ error: "Board not found" });
 
-    // Fetch the user making the request
-    const User = require('../models/User');
     const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
 
     // Allow if owner or admin
     if (board.user.toString() !== req.user.userId && (!user || user.role !== 'admin')) {
       return res.status(403).json({ error: "Unauthorized" });
     }
 
+    // Get board owner's info for notification
+    const boardOwner = await User.findById(board.user);
+    
     await Board.findByIdAndDelete(req.params.id);
+
+    // Send email notification to board owner
+    if (boardOwner && boardOwner.email) {
+      try {
+        await sendMail({
+          to: boardOwner.email,
+          subject: 'Board Deleted',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #ef4444;">Board Deleted</h2>
+              <p>Hi ${boardOwner.username},</p>
+              <p>Your board <strong>${board.name}</strong> has been deleted.</p>
+              ${user._id.toString() !== board.user.toString() ? 
+                `<p>This action was performed by an administrator.</p>` : 
+                ''
+              }
+              <p style="color: #666;">This is an automated notification. Please do not reply to this email.</p>
+            </div>
+          `
+        });
+      } catch (emailErr) {
+        console.error('Failed to send email notification:', emailErr);
+        // Don't fail the request if email fails
+      }
+    }
+
     res.status(200).json({ message: "Board deleted" });
   } catch (err) {
     res.status(500).json({ error: "Server error" });

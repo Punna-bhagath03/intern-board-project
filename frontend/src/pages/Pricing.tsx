@@ -113,21 +113,39 @@ const Pricing: React.FC = () => {
     if (!userId) return;
     setLoadingPlan(plan);
     try {
-      await api.patch(`/api/users/${userId}`, { plan: planApiValue(plan) });
+      // Use the user-specific endpoint
+      await api.put(`/api/users/${userId}/plan`, { 
+        plan: planApiValue(plan)
+      });
+      
       setUserPlan(plan);
       showNotification(`Your plan has been updated to ${plan}.`, 'success');
-      // Redirect to user's boards after short delay
-      setTimeout(() => {
-        const defaultBoardId = localStorage.getItem('defaultBoardId');
-        if (defaultBoardId) {
-          navigate(`/board/${defaultBoardId}`);
-        } else {
-          navigate('/board');
+
+      // Update localStorage with new plan
+      const token = localStorage.getItem('token');
+      if (token) {
+        // Fetch updated user data
+        const userRes = await api.get('/api/users/me');
+        if (userRes.data) {
+          // Store updated user data
+          localStorage.setItem('userPlan', userRes.data.plan);
         }
-      }, 1200);
+      }
+
+      // Fetch latest board ID
+      const boardsRes = await api.get('/api/boards');
+      if (boardsRes.data && boardsRes.data.length > 0) {
+        const latestBoard = boardsRes.data[0];
+        localStorage.setItem('defaultBoardId', latestBoard._id);
+        
+        // First reload the page to ensure all features are updated
+        window.location.href = `/board/${latestBoard._id}`;
+      } else {
+        // If no boards exist, redirect to /board to create one
+        window.location.href = '/board';
+      }
     } catch (err: any) {
       showNotification('Failed to update plan. Please try again.', 'error');
-    } finally {
       setLoadingPlan(null);
     }
   };
