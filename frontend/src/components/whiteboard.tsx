@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Rnd } from 'react-rnd';
 import api from '../api';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
@@ -75,6 +75,8 @@ interface SettingsModalProps {
   settingsOpen: boolean;
   settingsUsername: string;
   setSettingsUsername: (v: string) => void;
+  settingsEmail: string;  // Add this
+  setSettingsEmail: (v: string) => void;  // Add this
   settingsPassword: string;
   setSettingsPassword: (v: string) => void;
   settingsAvatarPreview: string | null;
@@ -101,6 +103,8 @@ function SettingsModal({
   settingsOpen,
   settingsUsername,
   setSettingsUsername,
+  settingsEmail,  // Add this
+  setSettingsEmail,  // Add this
   settingsPassword,
   setSettingsPassword,
   settingsAvatarPreview,
@@ -155,6 +159,16 @@ function SettingsModal({
           <div>
             <label className="block text-sm font-semibold mb-1">Username</label>
             <input type="text" value={settingsUsername} onChange={e => setSettingsUsername(e.target.value)} className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400" required />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Email</label>
+            <input 
+              type="email" 
+              value={settingsEmail} 
+              onChange={e => setSettingsEmail(e.target.value)}
+              className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400"
+              placeholder="Add your email to receive notifications"
+            />
           </div>
           <div>
             <label className="block text-sm font-semibold mb-1">Avatar</label>
@@ -772,6 +786,8 @@ const Whiteboard: React.FC = () => {
   const [settingsChanged, setSettingsChanged] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
+  const [settingsEmail, setSettingsEmail] = useState('');
+  const [currentEmail, setCurrentEmail] = useState('');
 
   // For board rename in modal
   const [renamingBoardId, setRenamingBoardId] = useState<string | null>(null);
@@ -872,6 +888,13 @@ const Whiteboard: React.FC = () => {
   const handleOpenSettings = () => {
     setSettingsOpen(true);
     setSettingsUsername(username);
+    // Fetch current user data including email
+    api.get('/api/users/me').then(res => {
+      if (res.data && res.data.email) {
+        setSettingsEmail(res.data.email);
+        setCurrentEmail(res.data.email);
+      }
+    });
     setSettingsAvatar(userAvatar);
     setSettingsAvatarPreview(null);
     setSettingsAvatarFile(null);
@@ -903,6 +926,7 @@ const Whiteboard: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append('username', settingsUsername);
+      if (settingsEmail) formData.append('email', settingsEmail);
       if (settingsPassword) formData.append('password', settingsPassword);
       if (settingsAvatarFile) formData.append('avatar', settingsAvatarFile);
       // If avatar is null and no preview and no file, send a flag to remove avatar
@@ -969,10 +993,11 @@ const Whiteboard: React.FC = () => {
   useEffect(() => {
     const changed =
       settingsUsername !== username ||
+      settingsEmail !== currentEmail ||
       !!settingsPassword ||
       !!settingsAvatarFile;
     setSettingsChanged(changed);
-  }, [settingsUsername, username, settingsPassword, settingsAvatarFile]);
+  }, [settingsUsername, username, settingsEmail, currentEmail, settingsPassword, settingsAvatarFile]);
 
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -1050,33 +1075,45 @@ const Whiteboard: React.FC = () => {
     }
   }, [token]);
 
-  const [userPlan, setUserPlan] = useState<string>('');
+  const [userPlan, setUserPlan] = useState<string>('Basic');
 
-  useEffect(() => {
-    if (!token) return;
-    api.get('http://localhost:5001/api/users/me', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(res => {
-        if (res.data && res.data.plan) {
+  // Add a function to fetch user data
+  const fetchUserData = useCallback(async () => {
+    try {
+      const res = await api.get('/api/users/me');
+      if (res.data) {
+        if (res.data.plan) {
           setUserPlan(res.data.plan);
-        } else if (res.data && res.data.role) {
-          setUserPlan(res.data.role === 'admin' ? 'Pro+' : 'Basic');
-        } else {
-          setUserPlan('Basic');
         }
-      })
-      .catch(() => setUserPlan('Basic'));
-  }, [token]);
+        // Update other user data as needed
+      }
+    } catch (err) {
+      console.error('Failed to fetch user data:', err);
+    }
+  }, []);
 
-  // Helper for plan restrictions
+  // Add effect to fetch user data periodically
+  useEffect(() => {
+    fetchUserData();
+    
+    // Poll for updates every 30 seconds
+    const interval = setInterval(fetchUserData, 30000);
+    
+    return () => clearInterval(interval);
+  }, [fetchUserData]);
+
+  // Update your plan-dependent logic
   const isBasic = userPlan === 'Basic';
   const isPro = userPlan === 'Pro';
   const isProPlus = userPlan === 'Pro+';
+
+  // Update your feature restriction checks
   const boardLimitReached = (isBasic && boards.length >= 2) || (isPro && boards.length >= 5);
-  // For frames: Pro can only have 1 frame
-  const frameLimitReached = isPro && canvasFrames.length >= 1;
-  const decorLimitReached = isBasic && decors.length >= 2;
+  const canUploadDecor = !isBasic || decors.length < 2;
+  const canUseFrames = !isBasic;
+  const canDownload = isPro || isProPlus;
+  const canShare = isProPlus;
+  const canReset = isPro || isProPlus;
 
   // Upgrade modal state
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
@@ -1089,6 +1126,50 @@ const Whiteboard: React.FC = () => {
   };
 
   const [editingName, setEditingName] = useState('');
+
+  // Add this near your other useEffects
+  useEffect(() => {
+    const fetchUserPlan = async () => {
+      try {
+        const res = await api.get('/api/users/me');
+        if (res.data && res.data.plan) {
+          setUserPlan(res.data.plan);
+          // Update localStorage
+          localStorage.setItem('userPlan', res.data.plan);
+        }
+      } catch (err) {
+        console.error('Failed to fetch user plan:', err);
+      }
+    };
+
+    // Fetch plan on mount and every 30 seconds
+    fetchUserPlan();
+    const interval = setInterval(fetchUserPlan, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Update your feature checks
+  const checkPlanFeatures = () => {
+    const currentPlan = userPlan || localStorage.getItem('userPlan') || 'Basic';
+    const isBasic = currentPlan === 'Basic';
+    const isPro = currentPlan === 'Pro';
+    const isProPlus = currentPlan === 'Pro+';
+
+    return {
+      canCreateBoard: !isBasic || boards.length < 2,
+      canUploadDecor: !isBasic || decors.length < 2,
+      canUseFrames: !isBasic,
+      canDownload: isPro || isProPlus,
+      canShare: isProPlus,
+      canReset: isPro || isProPlus,
+      maxBoards: isBasic ? 2 : isPro ? 5 : Infinity,
+      maxFrames: isBasic ? 0 : isPro ? 1 : Infinity,
+      maxDecors: isBasic ? 2 : Infinity
+    };
+  };
+
+  const features = checkPlanFeatures();
 
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
@@ -1689,8 +1770,8 @@ const Whiteboard: React.FC = () => {
                   </div>
                   {/* Frames section: fade/disable for Basic users */}
                   <div
-                    style={{ opacity: isBasic ? 0.4 : isPro && frameLimitReached ? 0.7 : 1, pointerEvents: 'auto' }}
-                    title={isBasic ? 'Frames are not available for Basic users.' : isPro && frameLimitReached ? 'Pro users can only have 1 frame.' : ''}
+                    style={{ opacity: isBasic ? 0.4 : isPro && canvasFrames.length >= 1 ? 0.7 : 1, pointerEvents: 'auto' }}
+                    title={isBasic ? 'Frames are not available for Basic users.' : isPro && canvasFrames.length >= 1 ? 'Pro users can only have 1 frame.' : ''}
                     onClick={isBasic ? () => openUpgradeModal('Frames', 'Pro/Pro+') : undefined}
                   >
                     <FramesSection
@@ -1699,13 +1780,13 @@ const Whiteboard: React.FC = () => {
                           openUpgradeModal('Frames', 'Pro/Pro+');
                           return;
                         }
-                        if (isPro && frameLimitReached) {
+                        if (isPro && canvasFrames.length >= 1) {
                           openUpgradeModal('More Frames', 'Pro+');
                           return;
                         }
                         handleAddFrameToBoard(src);
                       }}
-                      disableAdd={isBasic || (isPro && frameLimitReached)}
+                      disableAdd={isBasic || (isPro && canvasFrames.length >= 1)}
                       onUpgradeClick={() => openUpgradeModal(isBasic ? 'Frames' : 'More Frames', isBasic ? 'Pro/Pro+' : 'Pro+')}
                     />
                   </div>
@@ -1722,6 +1803,8 @@ const Whiteboard: React.FC = () => {
           settingsOpen={settingsOpen}
           settingsUsername={settingsUsername}
           setSettingsUsername={setSettingsUsername}
+          settingsEmail={settingsEmail}
+          setSettingsEmail={setSettingsEmail}
           settingsPassword={settingsPassword}
           setSettingsPassword={setSettingsPassword}
           settingsAvatarPreview={settingsAvatarPreview}

@@ -95,16 +95,47 @@ app.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
 
     // Record last login and login history
-    user.lastLogin = new Date();
+    const loginDate = new Date();
+    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || '';
+    const userAgent = req.headers['user-agent'] || '';
+    
+    user.lastLogin = loginDate;
     user.loginHistory = user.loginHistory || [];
     user.loginHistory.push({
-      date: new Date(),
-      ip: req.headers['x-forwarded-for'] || req.connection.remoteAddress || '',
-      userAgent: req.headers['user-agent'] || '',
+      date: loginDate,
+      ip,
+      userAgent,
     });
     // Optionally limit history length
     if (user.loginHistory.length > 20) user.loginHistory = user.loginHistory.slice(-20);
     await user.save();
+
+    // Send login notification email if user has email
+    if (user.email) {
+      try {
+        await sendMail({
+          to: user.email,
+          subject: 'New Login Detected',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #3b82f6;">New Login Detected</h2>
+              <p>Hi ${user.username},</p>
+              <p>A new login was detected on your account.</p>
+              <div style="background: #f3f4f6; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                <p style="margin: 5px 0;"><strong>Time:</strong> ${loginDate.toLocaleString()}</p>
+                <p style="margin: 5px 0;"><strong>IP Address:</strong> ${ip}</p>
+                <p style="margin: 5px 0;"><strong>Device:</strong> ${userAgent}</p>
+              </div>
+              <p>If this wasn't you, please change your password immediately.</p>
+              <p style="color: #666;">This is an automated notification. Please do not reply to this email.</p>
+            </div>
+          `
+        });
+      } catch (emailErr) {
+        console.error('Failed to send login notification email:', emailErr);
+        // Don't fail the login if email fails
+      }
+    }
 
     const token = jwt.sign({ userId: user._id, tokenVersion: user.tokenVersion || 0 }, process.env.JWT_SECRET, {
       expiresIn: '1d',
@@ -230,39 +261,113 @@ app.get('/api/users/:id', async (req, res) => {
   }
 });
 
-// PATCH /api/users/:id - update username, password, avatar, plan (optional, only allow plan if admin in frontend)
+// PATCH /api/users/:id - update username, password, email, avatar
 app.patch('/api/users/:id', upload.single('avatar'), async (req, res) => {
-  const { username, password, plan } = req.body;
+  const { username, password, email } = req.body;
   const userId = req.params.id;
   const update = {};
+
   if (username) {
     // Check for unique username (case-insensitive, not current user)
     const existing = await User.findOne({ username: { $regex: `^${username}$`, $options: 'i' }, _id: { $ne: userId } });
     if (existing) return res.status(409).json({ message: 'Username already exists.' });
     update.username = username;
   }
+
+  if (email) {
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Invalid email format.' });
+    }
+    // Check for unique email (case-insensitive, not current user)
+    const existing = await User.findOne({ email: { $regex: `^${email}$`, $options: 'i' }, _id: { $ne: userId } });
+    if (existing) return res.status(409).json({ message: 'Email already exists.' });
+    update.email = email;
+  }
+
   if (password) {
     if (password.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters.' });
     update.password = await bcrypt.hash(password, 10);
   }
-  if (plan) {
-    if (!['Basic', 'Pro', 'Pro+'].includes(plan)) return res.status(400).json({ message: 'Invalid plan' });
-    update.plan = plan;
-  }
+
   if (req.file) {
-    // Save avatar path relative to /uploads
     update.avatar = `/uploads/avatars/${req.file.filename}`;
   }
+
   try {
     const user = await User.findByIdAndUpdate(userId, update, { new: true });
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json({
       username: user.username,
+      email: user.email,
       avatar: user.avatar,
-      plan: user.plan,
     });
   } catch (err) {
     res.status(500).json({ message: 'Failed to update user' });
+  }
+});
+
+// PUT /api/users/:id/plan - Update user's own plan
+app.put('/api/users/:id/plan', authenticateToken, async (req, res) => {
+  const { plan } = req.body;
+  const userId = req.params.id;
+
+  // Verify user is updating their own plan
+  if (userId !== req.user.userId) {
+    return res.status(403).json({ message: 'You can only update your own plan' });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Validate plan
+    const validPlans = ['Basic', 'Pro', 'Pro+'];
+    if (!validPlans.includes(plan)) {
+      return res.status(400).json({ message: 'Invalid plan' });
+    }
+
+    // Update plan
+    user.plan = plan;
+    await user.save();
+
+    // Send email notification
+    if (user.email) {
+      try {
+        await sendMail({
+          to: user.email,
+          subject: 'Your Plan Has Been Updated',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #3b82f6;">Plan Update Notification</h2>
+              <p>Hi ${user.username},</p>
+              <p>Your plan has been updated to <strong>${plan}</strong>.</p>
+              <p>You now have access to all features included in the ${plan} plan.</p>
+              <p style="color: #666;">This is an automated notification. Please do not reply to this email.</p>
+            </div>
+          `
+        });
+      } catch (emailErr) {
+        console.error('Failed to send plan update email:', emailErr);
+      }
+    }
+
+    res.json({
+      message: 'Plan updated successfully',
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        plan: user.plan,
+        role: user.role
+      }
+    });
+  } catch (err) {
+    console.error('Error updating plan:', err);
+    res.status(500).json({ message: 'Failed to update plan' });
   }
 });
 

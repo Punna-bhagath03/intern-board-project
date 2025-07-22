@@ -59,12 +59,9 @@ const AdminDashboard: React.FC = () => {
         </div>
         <button
           onClick={() => {
-            const boardId = localStorage.getItem('defaultBoardId');
-            if (boardId) {
-              navigate(`/board/${boardId}`);
-            } else {
-              navigate('/board');
-            }
+            // Clear defaultBoardId to force fresh board fetch
+            localStorage.removeItem('defaultBoardId');
+            navigate('/board');
           }}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow focus:outline-none focus:ring-2 focus:ring-blue-400"
           aria-label="Back to boards"
@@ -89,7 +86,7 @@ const AdminDashboard: React.FC = () => {
             <button onClick={() => navigate('/admin/users')} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none">
               <FaFlag /> Flagged content
             </button>
-            <button onClick={() => navigate('/admin/users')} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none">
+            <button onClick={() => navigate('/admin/send-mail')} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none transition">
               <FaEnvelope /> Email
             </button>
         </nav>

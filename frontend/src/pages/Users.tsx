@@ -61,6 +61,7 @@ const Users: React.FC = () => {
     return bTime - aTime;
   });
 
+  // Update the filteredUsers logic
   const filteredUsers = sortedUsers.filter(u =>
     u.username.toLowerCase().includes(search.toLowerCase()) ||
     (u.email || '').toLowerCase().includes(search.toLowerCase())
@@ -83,7 +84,7 @@ const Users: React.FC = () => {
         <div className="mb-6 flex items-center justify-between">
           <input
             type="text"
-            placeholder="Search users..."
+            placeholder="Search users by name or email..."
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
             className="border border-gray-700 bg-gray-800 text-white rounded px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -95,6 +96,7 @@ const Users: React.FC = () => {
             <thead>
               <tr className="bg-gray-800 text-blue-300">
                 <th className="py-3 px-4 text-left">User Name</th>
+                <th className="py-3 px-4 text-left">Email</th>
                 <th className="py-3 px-4 text-left">Status</th>
                 <th className="py-3 px-4 text-left">Plan</th>
                 <th className="py-3 px-4 text-left">Last Login</th>
@@ -104,15 +106,18 @@ const Users: React.FC = () => {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} className="text-center py-8 text-blue-200">Loading...</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-blue-200">Loading...</td></tr>
               ) : error ? (
-                <tr><td colSpan={6} className="text-center py-8 text-red-400">{error}</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-red-400">{error}</td></tr>
               ) : paginatedUsers.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-8 text-gray-400">No users found.</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-gray-400">No users found.</td></tr>
               ) : paginatedUsers.map(user => (
                 <tr key={user._id} className="border-b border-gray-800 hover:bg-gray-800 transition group">
                   <td className="py-3 px-4 font-semibold flex items-center gap-2">
                     <FaUser className="text-blue-400" /> {user.username}
+                  </td>
+                  <td className="py-3 px-4 text-gray-300">
+                    {user.email || <span className="text-gray-500 italic">No email</span>}
                   </td>
                   <td className="py-3 px-4">
                     {isUserActive(user) ? (
@@ -121,7 +126,7 @@ const Users: React.FC = () => {
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-700 text-gray-300 text-xs font-bold">
-                        <FaUserTimes /> deactive
+                        <FaUserTimes /> inactive
                       </span>
                     )}
                   </td>
