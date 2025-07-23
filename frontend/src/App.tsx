@@ -111,6 +111,11 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/join" element={<JoinBoard />} />
+        <Route path="/pricing" element={
+          <ProtectedRoute>
+            <Pricing />
+          </ProtectedRoute>
+        } />
         {/* Admin routes */}
         <Route path="/admin/dashboard" element={
           <ProtectedRoute adminOnly={true}>
@@ -147,7 +152,6 @@ function App() {
             <AdminSendMail />
           </ProtectedRoute>
         } />
-        <Route path="/pricing" element={<Pricing />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

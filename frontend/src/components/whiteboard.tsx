@@ -14,6 +14,8 @@ import deep2 from '../assets/deep2.png';
 import FramesSection from './FramesSection';
 import ShareModal from './ShareModal';
 import { FaSignOutAlt, FaShareAlt, FaArrowUp, FaTachometerAlt, FaEdit, FaTrash } from 'react-icons/fa';
+import { useNotification } from '../NotificationContext';
+import { getCurrentUser } from '../api';
 
 // Helper to get absolute avatar URL
 const getAvatarUrl = (avatar: string | null | undefined): string => {
@@ -269,6 +271,16 @@ const UpgradeModal: React.FC<{ open: boolean; onClose: () => void; feature: stri
 };
 
 const Whiteboard: React.FC = () => {
+  // Navigation and route params
+  const navigate = useNavigate();
+  const { id } = useParams();
+  const location = useLocation();
+  const { showNotification } = useNotification();
+  const params = new URLSearchParams(location.search);
+  const shareToken = params.get('shareToken');
+  const sharePermission = params.get('permission');
+  const token = localStorage.getItem('token');
+
   // Board management state
   const [boards, setBoards] = useState<Board[]>([]);
   const [selectedBoard, setSelectedBoard] = useState<Board | null>(null);
@@ -277,7 +289,29 @@ const Whiteboard: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Whiteboard state
+  // User state
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userPlan, setUserPlan] = useState<string>('Basic');
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+  const [username, setUsername] = useState(localStorage.getItem('username') || '');
+
+  // Settings state
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+  const [settingsSuccess, setSettingsSuccess] = useState('');
+  const [settingsUsername, setSettingsUsername] = useState(username);
+  const [settingsPassword, setSettingsPassword] = useState('');
+  const [settingsAvatar, setSettingsAvatar] = useState<string | null>(null);
+  const [settingsAvatarFile, setSettingsAvatarFile] = useState<File | null>(null);
+  const [settingsAvatarPreview, setSettingsAvatarPreview] = useState<string | null>(null);
+  const [settingsChanged, setSettingsChanged] = useState(false);
+  const [settingsEmail, setSettingsEmail] = useState('');
+  const [currentEmail, setCurrentEmail] = useState('');
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
+
+  // Board state
   const [boardSize, setBoardSize] = useState<{ width: string; height: string }>({
     width: '600',
     height: '400',
@@ -285,25 +319,199 @@ const Whiteboard: React.FC = () => {
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [images, setImages] = useState<ImageItem[]>([]);
   const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
+  const [canvasFrames, setCanvasFrames] = useState<CanvasFrame[]>([]);
+  const [decors, setDecors] = useState<any[]>([]);
+  const [decorLoading, setDecorLoading] = useState(false);
+  const [hoveredImageId, setHoveredImageId] = useState<number | null>(null);
+
+  // Modal state
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState('');
+  const [upgradeRequiredPlan, setUpgradeRequiredPlan] = useState('');
+  const [showRefresh, setShowRefresh] = useState(false);
+  const [lastBoardHash, setLastBoardHash] = useState<string | null>(null);
+
+  // Refs
   const addImagesInputRef = useRef<HTMLInputElement | null>(null);
   const backgroundInputRef = useRef<HTMLInputElement | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
+  const decorInputRef = useRef<HTMLInputElement | null>(null);
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
+  const hasFocusedRef = useRef(false);
+
+  // At the top of the component, ensure these are present:
+  const [shareOpen, setShareOpen] = useState(false);
+  const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
+  const [editBoardName, setEditBoardName] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Board name editing handlers
+  const startEditingBoard = (board: Board) => {
+    setEditingBoardId(board._id);
+  };
+  const saveBoardName = async (board: Board) => {
+    if (!editBoardName.trim() || editBoardName === board.name) {
+      setEditingBoardId(null);
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const res = await api.put(`/api/boards/${board._id}`, { name: editBoardName }, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.data) {
+        setBoards(prev => prev.map(b => b._id === board._id ? { ...b, name: res.data.name } : b));
+        if (selectedBoard && selectedBoard._id === board._id) {
+          setSelectedBoard({ ...selectedBoard, name: res.data.name });
+        }
+      }
+      setEditingBoardId(null);
+    } catch (err) {
+      setError('Failed to update board name');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+  const handleEditInputKey = (e: React.KeyboardEvent<HTMLInputElement>, board: Board) => {
+    if (e.key === 'Enter') {
+      saveBoardName(board);
+    } else if (e.key === 'Escape') {
+      setEditingBoardId(null);
+    }
+  };
+
+  // Decor and frame handlers (restore if missing)
+  const handleAddDecorToCanvas = (src: string) => {
+    setImages((prev) => [
+      ...prev,
+      {
+        id: Date.now() + Math.random(),
+        src,
+        x: 100,
+        y: 100,
+        width: 100,
+        height: 100,
+      },
+    ]);
+  };
+  const handleDeleteDecor = async (id: string) => {
+    if (!token) return;
+    setDecorLoading(true);
+    try {
+      const decorToDelete = decors.find((d) => d._id === id);
+      await api.delete(`/api/decors/${id}`);
+      setDecors((prev) => prev.filter((d) => d._id !== id));
+      if (decorToDelete) {
+        setImages((prev) =>
+          prev.filter(
+            (img) => img.src !== `http://localhost:5001${decorToDelete.imageUrl}`
+          )
+        );
+      }
+    } catch (err) {
+      // handle error
+    }
+    setDecorLoading(false);
+  };
+  const handleAddFrameToBoard = (frameSrc: string) => {
+    setCanvasFrames((prev) => [
+      ...prev,
+      {
+        id: Date.now() + Math.random(),
+        frameSrc,
+        x: 100,
+        y: 100,
+        width: 220,
+        height: 280,
+      },
+    ]);
+  };
+  const handleFrameImageUpload = (frameId: number, file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      setCanvasFrames((prev) =>
+        prev.map((f) =>
+          f.id === frameId ? { ...f, imageSrc: dataUrl } : f
+        )
+      );
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Load user data and validate session
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const userData = await getCurrentUser();
+        if (!userData) {
+          showNotification('Please log in to continue', 'error');
+          navigate('/login');
+          return;
+        }
+
+        // Update user state
+        setUserId(userData._id);
+        setUserPlan(userData.plan || 'Basic');
+        setUserRole(userData.role || 'user');
+        setUsername(userData.username);
+        setUserAvatar(userData.avatar);
+
+        // Update localStorage
+        localStorage.setItem('userPlan', userData.plan || 'Basic');
+        localStorage.setItem('role', userData.role || 'user');
+        localStorage.setItem('username', userData.username);
+        if (userData.avatar) {
+          localStorage.setItem('avatar', userData.avatar);
+        }
+
+        // Load boards after confirming user is authenticated
+        try {
+          setLoadingBoards(true);
+          const boardsRes = await api.get('/api/boards');
+          setBoards(boardsRes.data);
+          setLoadingBoards(false);
+        } catch (err) {
+          console.error('Failed to load boards:', err);
+          showNotification('Failed to load boards', 'error');
+          setLoadingBoards(false);
+        }
+      } catch (err) {
+        console.error('Failed to load user data:', err);
+        showNotification('Failed to load user data', 'error');
+        navigate('/login');
+      }
+    };
+
+    loadUserData();
+  }, [navigate, showNotification]);
+
+  // Load specific board when ID changes
+  useEffect(() => {
+    if (!id || !userId) return;
+
+    const loadBoard = async () => {
+      try {
+        const headers: Record<string, string> = {};
+        if (shareToken) headers['x-share-token'] = shareToken;
+
+        const res = await api.get(`/api/boards/${id}`, { headers });
+        if (res.data) {
+          loadBoardContent(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to load board:', err);
+        showNotification('Failed to load board', 'error');
+        navigate('/board');
+      }
+    };
+
+    loadBoard();
+  }, [id, userId, shareToken, navigate, showNotification]);
+
   const setBoardRef = (node: any) => {
     if (node && node.resizableElement) {
       boardRef.current = node.resizableElement.current;
     }
   };
-
-  // Get JWT token from localStorage
-  const token = localStorage.getItem('token');
-  const username = localStorage.getItem('username') || '';
-
-  const navigate = useNavigate();
-  const { id } = useParams();
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  const shareToken = params.get('shareToken');
-  const sharePermission = params.get('permission');
 
   // Fetch all boards for the user
   useEffect(() => {
@@ -616,190 +824,8 @@ const Whiteboard: React.FC = () => {
   }
 
   // Board name editing state
-  const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
-  const [editBoardName, setEditBoardName] = useState('');
-  const [editSaving, setEditSaving] = useState(false);
-
-  // Start editing a board name
-  const startEditingBoard = (board: Board) => {
-    setEditingBoardId(board._id);
-    setEditBoardName(board.name);
-  };
-
-  // Save edited board name
-  const saveBoardName = async (board: Board) => {
-    if (!editBoardName.trim() || editBoardName === board.name) {
-      setEditingBoardId(null);
-      return;
-    }
-    setEditSaving(true);
-    try {
-      const res = await api.put(`/api/boards/${board._id}`, { name: editBoardName }, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.data) {
-        setBoards(prev => prev.map(b => b._id === board._id ? { ...b, name: res.data.name } : b));
-        if (selectedBoard && selectedBoard._id === board._id) {
-          setSelectedBoard({ ...selectedBoard, name: res.data.name });
-        }
-      }
-      setEditingBoardId(null);
-    } catch (err) {
-      setError('Failed to update board name');
-    } finally {
-      setEditSaving(false);
-    }
-  };
-
-  // Handle Enter/Escape in input
-  const handleEditInputKey = (e: React.KeyboardEvent<HTMLInputElement>, board: Board) => {
-    if (e.key === 'Enter') {
-      saveBoardName(board);
-    } else if (e.key === 'Escape') {
-      setEditingBoardId(null);
-    }
-  };
-
-  // 1. Add consistent SVG icons (Heroicons outline style)
-  const PencilIcon = ({ className = '' }) => (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487a2.1 2.1 0 1 1 2.97 2.97L7.5 19.79l-4 1 1-4 12.362-12.303ZM16.862 4.487l2.651 2.651" />
-    </svg>
-  );
-  const TrashIcon = ({ className = '' }) => (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18.75A2.25 2.25 0 0 0 8.25 21h7.5A2.25 2.25 0 0 0 18 18.75V7.5H6v11.25ZM9.75 10.5v6m4.5-6v6M7.5 7.5V6A2.25 2.25 0 0 1 9.75 3.75h4.5A2.25 2.25 0 0 1 16.5 6v1.5m-9 0h12" />
-    </svg>
-  );
-  const DownloadIcon = ({ className = '' }) => (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4m-7 7h10" />
-    </svg>
-  );
-  const SaveIcon = ({ className = '' }) => (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 16v2a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-2m10-6V6a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v4m10 0H6" />
-    </svg>
-  );
-  const LogoutIcon = ({ className = '' }) => (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m-3-3h8.25m0 0l-3-3m3 3l-3 3" />
-    </svg>
-  );
-
-  const [decors, setDecors] = useState<any[]>([]); // user-uploaded decors
-  const [decorLoading, setDecorLoading] = useState(false);
-  const decorInputRef = useRef<HTMLInputElement | null>(null);
-  const [hoveredImageId, setHoveredImageId] = useState<number | null>(null);
-
-  // Fetch user decors on mount
-  useEffect(() => {
-    const fetchDecors = async () => {
-      if (!token) return;
-      setDecorLoading(true);
-      try {
-        const res = await api.get('/api/decors');
-        setDecors(res.data);
-      } catch (err) {
-        // handle error
-      }
-      setDecorLoading(false);
-    };
-    fetchDecors();
-  }, [token]);
-
-  // Handle decor upload
-  const handleDeleteDecor = async (id: string) => {
-    if (!token) return;
-    setDecorLoading(true);
-    try {
-      // Find the decor object before deleting
-      const decorToDelete = decors.find((d) => d._id === id);
-      await api.delete(`/api/decors/${id}`);
-      setDecors((prev) => prev.filter((d) => d._id !== id));
-      // Remove all board images with this decor's src
-      if (decorToDelete) {
-        setImages((prev) =>
-          prev.filter(
-            (img) => img.src !== `http://localhost:5001${decorToDelete.imageUrl}`
-          )
-        );
-      }
-    } catch (err) {
-      // handle error
-    }
-    setDecorLoading(false);
-  };
-
-  // Add decor to canvas
-  const handleAddDecorToCanvas = (src: string) => {
-    setImages((prev) => [
-      ...prev,
-      {
-        id: Date.now() + Math.random(),
-        src,
-        x: 100,
-        y: 100,
-        width: 100,
-        height: 100,
-      },
-    ]);
-  };
-
-  const [canvasFrames, setCanvasFrames] = useState<CanvasFrame[]>([]);
-
-  const handleAddFrameToBoard = (frameSrc: string) => {
-    setCanvasFrames((prev) => [
-      ...prev,
-      {
-        id: Date.now() + Math.random(),
-        frameSrc,
-        x: 100,
-        y: 100,
-        width: 220,
-        height: 280,
-      },
-    ]);
-  };
-
-  const handleFrameImageUpload = (frameId: number, file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      setCanvasFrames((prev) =>
-        prev.map((f) =>
-          f.id === frameId ? { ...f, imageSrc: dataUrl } : f
-        )
-      );
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Add at the top-level of the Whiteboard component:
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsLoading, setSettingsLoading] = useState(false);
-  const [settingsError, setSettingsError] = useState('');
-  const [settingsSuccess, setSettingsSuccess] = useState('');
-  const [settingsUsername, setSettingsUsername] = useState(username);
-  const [settingsPassword, setSettingsPassword] = useState('');
-  const [settingsAvatar, setSettingsAvatar] = useState<string | null>(null);
-  const [settingsAvatarFile, setSettingsAvatarFile] = useState<File | null>(null);
-  const [settingsAvatarPreview, setSettingsAvatarPreview] = useState<string | null>(null);
-  const [settingsChanged, setSettingsChanged] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userAvatar, setUserAvatar] = useState<string | null>(null);
-  const [settingsEmail, setSettingsEmail] = useState('');
-  const [currentEmail, setCurrentEmail] = useState('');
-
-  // For board rename in modal
-  const [renamingBoardId, setRenamingBoardId] = useState<string | null>(null);
   const [renameBoardName, setRenameBoardName] = useState('');
   const [deletingBoardId, setDeletingBoardId] = useState<string | null>(null);
-
-  // Add state to control password update visibility
-  const [showPasswordInput, setShowPasswordInput] = useState(false);
-
-  // 1. Add state for board refresh
-  const [showRefresh, setShowRefresh] = useState(false);
-  const [lastBoardHash, setLastBoardHash] = useState<string | null>(null);
 
   // 2. Utility to hash board content for change detection
   function hashBoardContent(content: any) {
@@ -880,9 +906,6 @@ const Whiteboard: React.FC = () => {
         });
     }
   }, [token]);
-
-  const passwordInputRef = useRef<HTMLInputElement | null>(null);
-  const hasFocusedRef = useRef(false);
 
   // Remove setTimeout or direct .focus() from handleOpenSettings
   const handleOpenSettings = () => {
@@ -999,15 +1022,6 @@ const Whiteboard: React.FC = () => {
     setSettingsChanged(changed);
   }, [settingsUsername, username, settingsEmail, currentEmail, settingsPassword, settingsAvatarFile]);
 
-  const [shareOpen, setShareOpen] = useState(false);
-
-  // In the header, show board name from selectedBoard?.name
-  // Show a Read Only badge if sharePermission === 'view'
-  // Disable editing features if sharePermission === 'view'
-  // Example for Save button:
-  // <button ... disabled={sharePermission === 'view' || saving}>Save</button>
-  // For upload, reset, add/delete, etc, wrap with similar checks
-
   // Determine if the current user is the owner
   const isOwner = selectedBoard && selectedBoard.user === userId;
 
@@ -1052,8 +1066,6 @@ const Whiteboard: React.FC = () => {
     if (decorInputRef.current) decorInputRef.current.value = '';
   };
 
-  const [userRole, setUserRole] = useState<string | null>(null);
-
   // Fetch user role on mount if not in localStorage
   useEffect(() => {
     const storedRole = localStorage.getItem('role');
@@ -1074,8 +1086,6 @@ const Whiteboard: React.FC = () => {
         });
     }
   }, [token]);
-
-  const [userPlan, setUserPlan] = useState<string>('Basic');
 
   // Add a function to fetch user data
   const fetchUserData = useCallback(async () => {
@@ -1115,17 +1125,11 @@ const Whiteboard: React.FC = () => {
   const canShare = isProPlus;
   const canReset = isPro || isProPlus;
 
-  // Upgrade modal state
-  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
-  const [upgradeFeature, setUpgradeFeature] = useState('');
-  const [upgradeRequiredPlan, setUpgradeRequiredPlan] = useState('');
   const openUpgradeModal = (feature: string, requiredPlan?: string) => {
     setUpgradeFeature(feature);
     setUpgradeRequiredPlan(requiredPlan || 'Pro/Pro+');
     setUpgradeModalOpen(true);
   };
-
-  const [editingName, setEditingName] = useState('');
 
   // Add this near your other useEffects
   useEffect(() => {
@@ -1170,6 +1174,32 @@ const Whiteboard: React.FC = () => {
   };
 
   const features = checkPlanFeatures();
+
+  // Update handlePlanChange to use proper error handling
+  const handlePlanChange = async (plan: string) => {
+    if (!userId) {
+      showNotification('User data not loaded', 'error');
+      return;
+    }
+
+    try {
+      const res = await api.put(`/api/admin/user/${userId}/plan-role`, {
+        plan,
+        role: undefined
+      });
+
+      if (res.data.requiresReload) {
+        setUserPlan(plan);
+        localStorage.setItem('userPlan', plan);
+        showNotification(`Successfully upgraded to ${plan} plan!`, 'success');
+        navigate('/board');
+      }
+    } catch (err: any) {
+      console.error('Failed to update plan:', err);
+      const errorMessage = err.response?.data?.message || 'Failed to update plan';
+      showNotification(errorMessage, 'error');
+    }
+  };
 
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">

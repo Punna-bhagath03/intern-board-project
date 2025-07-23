@@ -15,9 +15,28 @@ export default function Login() {
   const { showNotification } = useNotification();
 
   useEffect(() => {
-    // Clear any existing auth data on mount
-    localStorage.removeItem('token');
-    refreshAuthToken();
+    // Check if already logged in
+    const token = localStorage.getItem('token');
+    if (token) {
+      // Verify token is valid
+      api.get('/api/users/me')
+        .then(res => {
+          if (res.data) {
+            // Token is valid, handle redirect
+            const authRedirect = localStorage.getItem('auth-redirect');
+            if (authRedirect) {
+              navigate(authRedirect);
+            } else {
+              navigate('/board');
+            }
+          }
+        })
+        .catch(() => {
+          // Token is invalid, clear it
+          localStorage.removeItem('token');
+          refreshAuthToken();
+        });
+    }
 
     // Check for redirect params
     const params = new URLSearchParams(location.search);
@@ -25,7 +44,7 @@ export default function Login() {
     if (redirect) {
       localStorage.setItem('auth-redirect', redirect);
     }
-  }, [location.search]);
+  }, [location.search, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,17 +78,8 @@ export default function Login() {
 
         // Handle redirects in order of priority
         const authRedirect = localStorage.getItem('auth-redirect');
-        const intendedPlan = localStorage.getItem('intended-plan');
-
         if (authRedirect) {
           localStorage.removeItem('auth-redirect');
-          
-          // If redirecting to pricing and we have an intended plan,
-          // keep the intended plan in localStorage
-          if (authRedirect !== '/pricing') {
-            localStorage.removeItem('intended-plan');
-          }
-          
           navigate(authRedirect);
           return;
         }
