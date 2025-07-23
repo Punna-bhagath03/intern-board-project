@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
-import { setGlobalNotify } from './api';
 
 export type NotificationType = 'info' | 'success' | 'error' | 'warning';
 
@@ -22,13 +21,13 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
 
   const showNotification = (message: string, type: NotificationType = 'info') => {
     setNotification({ message, type });
+    // Auto-clear notification after 5 seconds
+    setTimeout(() => {
+      setNotification(null);
+    }, 5000);
   };
 
   const clearNotification = () => setNotification(null);
-
-  React.useEffect(() => {
-    setGlobalNotify(showNotification as (msg: string, type?: string) => void);
-  }, []);
 
   return (
     <NotificationContext.Provider value={{ notification, showNotification, clearNotification }}>

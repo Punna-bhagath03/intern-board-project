@@ -174,7 +174,7 @@ app.get('/api/users/me', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json({ username: user.username, avatar: user.avatar, role: user.role, plan: user.plan });
+    res.json({ _id: user._id, username: user.username, avatar: user.avatar, role: user.role, plan: user.plan });
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch user' });
   }
