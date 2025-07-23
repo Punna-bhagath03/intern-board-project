@@ -1,28 +1,24 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api';
-import { useNavigate, useParams } from 'react-router-dom';
-import { FaArrowLeft, FaTrash, FaUser, FaArrowRight } from 'react-icons/fa';
-import { useNotification } from '../NotificationContext';
-
-interface User {
-  _id: string;
-  username: string;
-  avatar?: string;
-}
+import { FaUser, FaArrowLeft, FaTrash } from 'react-icons/fa';
 
 interface Board {
   _id: string;
   name: string;
+  createdAt?: string;
+  user: string;
 }
 
-const getAvatarUrl = (avatar: string | null | undefined): string => {
-  if (!avatar) return '/default-avatar.png';
-  if (avatar.startsWith('http')) return avatar;
-  return `http://localhost:5001/${avatar.replace(/^\/+/,'')}`;
-};
+interface User {
+  _id: string;
+  username: string;
+  role: string;
+  plan?: string;
+  avatar?: string;
+}
 
 const UserBoards: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [boards, setBoards] = useState<Board[]>([]);
@@ -30,9 +26,9 @@ const UserBoards: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [boardsLoading, setBoardsLoading] = useState(false);
   const [boardsError, setBoardsError] = useState<string | null>(null);
-  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const navigate = useNavigate();
-  const { showNotification } = useNotification();
+  const location = useLocation();
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -42,10 +38,11 @@ const UserBoards: React.FC = () => {
         const token = localStorage.getItem('token');
         const res = await api.get('/api/admin/users');
         setUsers(Array.isArray(res.data) ? res.data : []);
-        // If coming from a direct link, select the user by id
-        if (id) {
-          const found = res.data.find((u: User) => u._id === id);
-          if (found) setSelectedUser(found);
+        
+        // If userId is provided in location state, select that user
+        if (location.state?.userId) {
+          const user = res.data.find((u: User) => u._id === location.state.userId);
+          if (user) setSelectedUser(user);
         }
       } catch (err: any) {
         setError('Failed to fetch users');
@@ -53,10 +50,13 @@ const UserBoards: React.FC = () => {
       setLoading(false);
     };
     fetchUsers();
-  }, [id]);
+  }, [location.state?.userId]);
 
   useEffect(() => {
-    if (!selectedUser) return;
+    if (!selectedUser) {
+      setBoards([]);
+      return;
+    }
     const fetchBoards = async () => {
       setBoardsLoading(true);
       setBoardsError(null);
@@ -73,23 +73,6 @@ const UserBoards: React.FC = () => {
     fetchBoards();
   }, [selectedUser]);
 
-  // Fetch current user's avatar for profile icon
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    api.get('http://localhost:5001/api/users/me', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(res => {
-        if (res.data && res.data.avatar) {
-          setUserAvatar(res.data.avatar);
-        } else {
-          setUserAvatar(null);
-        }
-      })
-      .catch(() => setUserAvatar(null));
-  }, []);
-
   const handleDeleteBoard = async (boardId: string) => {
     if (!selectedUser) return;
     if (!window.confirm('Are you sure you want to delete this board? This action cannot be undone.')) return;
@@ -97,92 +80,123 @@ const UserBoards: React.FC = () => {
       const token = localStorage.getItem('token');
       await api.delete(`/api/boards/${boardId}`);
       setBoards(prev => prev.filter(b => b._id !== boardId));
-      showNotification('Board deleted successfully.', 'success');
     } catch (err) {
-      showNotification('Failed to delete board.', 'error');
+      alert('Failed to delete board.');
     }
   };
 
+  const getAvatarUrl = (avatar: string) => {
+    return `/uploads/avatars/${avatar}`;
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 text-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 text-white">
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-8 py-4 bg-gray-800 border-b border-gray-700 relative">
-        {/* Profile Icon (pill) */}
-        <div className="absolute left-8 top-1/2 -translate-y-1/2 flex items-center">
-          <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center text-gray-700 text-2xl font-bold shadow-md border-2 border-gray-200 overflow-hidden">
-            {userAvatar ? (
-              <img src={getAvatarUrl(userAvatar)} alt="Avatar" className="w-12 h-12 rounded-full object-cover" />
-            ) : (
-              <FaUser color="#3b82f6" size={32} />
-            )}
+      <div className="flex items-center justify-between px-8 py-4 bg-gray-800/50 backdrop-blur-md border-b border-gray-700">
+        <div className="flex items-center gap-3">
+          <div className="text-2xl text-blue-400">
+            <FaUser />
           </div>
+          <span className="text-xl font-bold tracking-wide">Users' Boards</span>
         </div>
-        <h1 className="text-2xl font-bold tracking-wide mx-auto">Users boards</h1>
-        {/* Upgrade Button (pill) */}
         <button
-          onClick={() => navigate('/pricing')}
-          className="absolute right-8 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-full font-semibold shadow focus:outline-none focus:ring-2 focus:ring-blue-400 transition text-base"
-          style={{ minWidth: 120 }}
+          onClick={() => navigate('/admin/dashboard')}
+          className="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/30 backdrop-blur-md text-white px-6 py-2.5 rounded-lg font-semibold shadow-lg shadow-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-400/50 border border-blue-400/20 transition-all duration-300"
         >
-          Upgrade
+          <FaArrowLeft />
+          Back to dashboard
         </button>
       </div>
-      <div className="flex flex-1">
-        {/* Users List Sidebar */}
-        <aside className="w-80 bg-gray-900 border-r border-gray-800 flex flex-col py-8 px-4 gap-4 min-h-full">
-          <h2 className="text-xl font-semibold mb-4">Users list</h2>
-          <div className="flex flex-col gap-2">
-            {loading ? (
-              <div className="text-blue-200">Loading...</div>
-            ) : error ? (
-              <div className="text-red-400">{error}</div>
-            ) : users.length === 0 ? (
-              <div className="text-gray-400">No users found.</div>
-            ) : users.map(user => (
-              <button
-                key={user._id}
-                onClick={() => setSelectedUser(user)}
-                className={`flex items-center justify-between px-4 py-3 rounded-full bg-gray-800 hover:bg-gray-700 focus:bg-gray-700 font-semibold text-white focus:outline-none border ${selectedUser && selectedUser._id === user._id ? 'border-blue-500' : 'border-transparent'} transition`}
-                aria-label={`Show boards for ${user.username}`}
-              >
-                <span className="flex items-center gap-2"><FaUser color="#60a5fa" size={20} /> {user.username}</span>
-                <FaArrowRight color="#60a5fa" size={20} />
-              </button>
-            ))}
-          </div>
-        </aside>
-        {/* Boards List */}
-        <main className="flex-1 flex flex-col items-center justify-center p-8">
-          {!selectedUser ? (
-            <div className="text-blue-200 text-lg">Select a user to view their boards.</div>
-          ) : (
-            <div className="w-full max-w-2xl bg-gray-900 rounded-2xl shadow-lg p-8 border border-gray-700">
-              <h2 className="text-xl font-bold mb-6">Boards for <span className="text-blue-300">{selectedUser.username}</span></h2>
-              {boardsLoading ? (
-                <div className="text-blue-200">Loading boards...</div>
-              ) : boardsError ? (
-                <div className="text-red-400">{boardsError}</div>
-              ) : boards.length === 0 ? (
-                <div className="text-gray-400">No boards found for this user.</div>
+
+      {/* Main Content */}
+      <div className="p-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          {/* Users List */}
+          <div className="bg-gray-900/50 backdrop-blur-md rounded-2xl shadow-lg border border-gray-700 p-6">
+            <h2 className="text-lg font-semibold mb-4">Select User</h2>
+            <div className="space-y-2">
+              {loading ? (
+                <div className="flex justify-center py-4">
+                  <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : error ? (
+                <div className="text-red-500 text-center py-4">{error}</div>
               ) : (
-                <ul className="space-y-4">
-                  {boards.map(board => (
-                    <li key={board._id} className="flex items-center justify-between bg-gray-800 rounded-full p-4 shadow hover:shadow-xl transition">
-                      <span className="font-semibold text-lg text-blue-200">{board.name}</span>
-                      <button
-                        onClick={() => handleDeleteBoard(board._id)}
-                        className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-full font-semibold shadow focus:outline-none focus:ring-2 focus:ring-red-400 transition flex items-center gap-2"
-                        aria-label={`Delete board ${board.name}`}
-                      >
-                        <FaTrash color="#fff" size={18} /> Delete
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                users.map(user => (
+                  <button
+                    key={user._id}
+                    onClick={() => setSelectedUser(user)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg ${
+                      selectedUser?._id === user._id
+                        ? 'bg-blue-600/20 text-white border border-blue-400/20'
+                        : 'bg-gray-800/40 hover:bg-gray-700/40 text-gray-300 border border-gray-600/20'
+                    } transition-all duration-200`}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-gray-700/50 flex items-center justify-center overflow-hidden">
+                      {user.avatar ? (
+                        <img src={getAvatarUrl(user.avatar)} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="text-gray-400">
+                          <FaUser />
+                        </div>
+                      )}
+                    </div>
+                    <span className="font-medium">{user.username}</span>
+                  </button>
+                ))
               )}
             </div>
-          )}
-        </main>
+          </div>
+
+          {/* Boards List */}
+          <div className="md:col-span-3">
+            <div className="bg-gray-900/50 backdrop-blur-md rounded-2xl shadow-lg border border-gray-700 p-6">
+              <h2 className="text-lg font-semibold mb-4">
+                {selectedUser ? `${selectedUser.username}'s Boards` : 'Select a user to view their boards'}
+              </h2>
+              {boardsLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-10 h-10 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : boardsError ? (
+                <div className="text-red-500 text-center py-8">{boardsError}</div>
+              ) : !selectedUser ? (
+                <div className="text-gray-400 text-center py-8">Select a user from the list to view their boards</div>
+              ) : boards.length === 0 ? (
+                <div className="text-gray-400 text-center py-8">No boards found for this user</div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {boards.map(board => (
+                    <div
+                      key={board._id}
+                      className="bg-gray-800/50 backdrop-blur-md rounded-xl p-6 border border-gray-700 flex flex-col group hover:border-gray-600 transition-all duration-200"
+                    >
+                      <h3 className="font-semibold text-lg mb-2 text-blue-300">{board.name}</h3>
+                      <div className="text-sm text-gray-400 mb-4">
+                        Created: {board.createdAt ? new Date(board.createdAt).toLocaleDateString() : 'N/A'}
+                      </div>
+                      <div className="mt-auto flex items-center justify-between">
+                        <button
+                          onClick={() => navigate(`/admin/board/${board._id}`)}
+                          className="bg-blue-600/20 hover:bg-blue-600/30 text-white px-4 py-2 rounded-lg text-sm font-medium border border-blue-400/20 transition-all duration-200"
+                        >
+                          View Board
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBoard(board._id)}
+                          className="text-red-400 hover:text-red-300 p-2 rounded-lg transition-colors duration-200"
+                          title="Delete board"
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

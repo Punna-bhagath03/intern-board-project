@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
-import { FaArrowRight, FaUser, FaUserCheck, FaUserTimes } from 'react-icons/fa';
+import { FaUser, FaSearch, FaArrowLeft, FaUserCheck, FaUserTimes } from 'react-icons/fa';
 
 interface User {
   _id: string;
@@ -9,10 +9,7 @@ interface User {
   email?: string;
   status?: 'active' | 'pending' | 'suspended';
   role: 'user' | 'admin';
-  createdAt?: string;
   lastLogin?: string;
-  isOnline?: boolean;
-  plan?: string;
 }
 
 const Users: React.FC = () => {
@@ -42,7 +39,6 @@ const Users: React.FC = () => {
     fetchUsers();
   }, []);
 
-  // Helper to determine if user is online (active)
   const isUserActive = (user: User) => {
     if (!user.lastLogin) return false;
     const last = new Date(user.lastLogin).getTime();
@@ -50,7 +46,6 @@ const Users: React.FC = () => {
     return now - last < 600000;
   };
 
-  // Sort: active and latest login first
   const sortedUsers = [...users].sort((a, b) => {
     const aActive = isUserActive(a);
     const bActive = isUserActive(b);
@@ -61,7 +56,6 @@ const Users: React.FC = () => {
     return bTime - aTime;
   });
 
-  // Update the filteredUsers logic
   const filteredUsers = sortedUsers.filter(u =>
     u.username.toLowerCase().includes(search.toLowerCase()) ||
     (u.email || '').toLowerCase().includes(search.toLowerCase())
@@ -70,103 +64,121 @@ const Users: React.FC = () => {
   const totalPages = Math.ceil(filteredUsers.length / PAGE_SIZE);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 text-white flex flex-col items-center p-8">
-      <div className="w-full max-w-6xl flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-center">User Detail Panel</h1>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 text-white">
+      {/* Top Bar */}
+      <div className="flex items-center justify-between px-8 py-4 bg-gray-800/50 backdrop-blur-md border-b border-gray-700">
+        <div className="flex items-center gap-3">
+          <div className="text-2xl text-blue-400">
+            <FaUser />
+          </div>
+          <span className="text-xl font-bold tracking-wide">Users</span>
+        </div>
         <button
           onClick={() => navigate('/admin/dashboard')}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold shadow focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/30 backdrop-blur-md text-white px-6 py-2.5 rounded-lg font-semibold shadow-lg shadow-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-400/50 border border-blue-400/20 transition-all duration-300"
         >
+          <FaArrowLeft />
           Back to dashboard
         </button>
       </div>
-      <div className="w-full max-w-6xl bg-gray-900 rounded-2xl shadow-lg p-6 border border-gray-700">
-        <div className="mb-6 flex items-center justify-between">
-          <input
-            type="text"
-            placeholder="Search users by name or email..."
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
-            className="border border-gray-700 bg-gray-800 text-white rounded px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            aria-label="Search users"
-          />
-        </div>
-        <div className="overflow-x-auto rounded-lg">
-          <table className="min-w-full text-sm bg-gray-900">
-            <thead>
-              <tr className="bg-gray-800 text-blue-300">
-                <th className="py-3 px-4 text-left">User Name</th>
-                <th className="py-3 px-4 text-left">Email</th>
-                <th className="py-3 px-4 text-left">Status</th>
-                <th className="py-3 px-4 text-left">Plan</th>
-                <th className="py-3 px-4 text-left">Last Login</th>
-                <th className="py-3 px-4 text-left">Role</th>
-                <th className="py-3 px-4 text-center">Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={7} className="text-center py-8 text-blue-200">Loading...</td></tr>
-              ) : error ? (
-                <tr><td colSpan={7} className="text-center py-8 text-red-400">{error}</td></tr>
-              ) : paginatedUsers.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-8 text-gray-400">No users found.</td></tr>
-              ) : paginatedUsers.map(user => (
-                <tr key={user._id} className="border-b border-gray-800 hover:bg-gray-800 transition group">
-                  <td className="py-3 px-4 font-semibold flex items-center gap-2">
-                    <FaUser className="text-blue-400" /> {user.username}
-                  </td>
-                  <td className="py-3 px-4 text-gray-300">
-                    {user.email || <span className="text-gray-500 italic">No email</span>}
-                  </td>
-                  <td className="py-3 px-4">
-                    {isUserActive(user) ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-900 text-green-300 text-xs font-bold">
-                        <FaUserCheck /> active
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-700 text-gray-300 text-xs font-bold">
-                        <FaUserTimes /> inactive
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-blue-200">{user.plan || (user.role === 'admin' ? 'Pro+' : 'Basic')}</td>
-                  <td className="py-3 px-4">{user.lastLogin ? new Date(user.lastLogin).toLocaleString() : <span className="italic text-gray-500">Never</span>}</td>
-                  <td className="py-3 px-4 capitalize">{user.role}</td>
-                  <td className="py-3 px-4 text-center">
-                    <button
-                      onClick={() => navigate('/admin/users/boards', { state: { userId: user._id } })}
-                      className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
-                      aria-label={`View details for ${user.username}`}
-                    >
-                      <FaArrowRight className="text-lg" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {/* Pagination controls */}
-        {totalPages > 1 && (
-          <div className="flex justify-center mt-6 gap-2">
-            <button
-              onClick={() => setPage(page - 1)}
-              disabled={page === 1}
-              className="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 text-blue-200 disabled:opacity-50"
-            >
-              Prev
-            </button>
-            <span className="px-2">Page {page} of {totalPages}</span>
-            <button
-              onClick={() => setPage(page + 1)}
-              disabled={page === totalPages}
-              className="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 text-blue-200 disabled:opacity-50"
-            >
-              Next
-            </button>
+
+      {/* Main Content */}
+      <div className="p-8">
+        <div className="bg-gray-900/50 backdrop-blur-md rounded-2xl shadow-lg border border-gray-700 overflow-hidden">
+          {/* Search Bar */}
+          <div className="p-6 border-b border-gray-700">
+            <div className="relative max-w-md">
+              <input
+                type="text"
+                placeholder="Search users..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-gray-800/50 backdrop-blur-md text-white px-4 py-2 pl-10 rounded-lg border border-gray-600/50 focus:outline-none focus:border-blue-500/50 transition-all duration-300"
+              />
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                <FaSearch />
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* Users Table */}
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="w-10 h-10 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : error ? (
+            <div className="text-red-500 text-center p-8">{error}</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-800/50">
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-blue-300">Status</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-blue-300">Username</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-blue-300">Email</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-blue-300">Role</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-blue-300">Last Login</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/50">
+                  {paginatedUsers.map(user => (
+                    <tr key={user._id} className="group hover:bg-gray-800/30 transition-colors duration-200">
+                      <td className="px-6 py-4">
+                        {isUserActive(user) ? (
+                          <div className="flex items-center gap-2 text-green-400">
+                            <FaUserCheck />
+                            <span>Active</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-gray-400">
+                            <FaUserTimes />
+                            <span>Inactive</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 font-medium">{user.username}</td>
+                      <td className="px-6 py-4 text-gray-300">{user.email || 'N/A'}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-sm ${
+                          user.role === 'admin' 
+                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/20' 
+                            : 'bg-gray-700/20 text-gray-300 border border-gray-600/20'
+                        }`}>
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-gray-300">
+                        {user.lastLogin 
+                          ? new Date(user.lastLogin).toLocaleString()
+                          : 'Never'
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {!loading && !error && totalPages > 1 && (
+            <div className="flex justify-center items-center gap-2 p-4 border-t border-gray-700">
+              {Array.from({ length: totalPages }, (_, i) => (
+                <button
+                  key={i + 1}
+                  onClick={() => setPage(i + 1)}
+                  className={`px-3 py-1 rounded ${
+                    page === i + 1
+                      ? 'bg-blue-600/20 text-white border border-blue-400/20'
+                      : 'bg-gray-800/50 text-gray-400 border border-gray-700 hover:bg-gray-700/50'
+                  } transition-all duration-200`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
