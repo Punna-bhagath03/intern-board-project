@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
-import { FaUsers, FaUserCheck, FaClipboardList, FaUserCog, FaFlag, FaEnvelope, FaArrowLeft, FaUser, FaEdit, FaCheck, FaTimes } from 'react-icons/fa';
+import { FaUsers, FaUserCheck, FaClipboardList, FaUserCog, FaFlag, FaEnvelope, FaArrowLeft, FaUser, FaEdit, FaCheck, FaTimes, FaBell } from 'react-icons/fa';
 import { useNotification } from '../NotificationContext';
 
 interface User {
@@ -76,6 +76,9 @@ const AdminDashboard: React.FC = () => {
       ],
     },
   ]);
+  const [planRequests, setPlanRequests] = useState<any[]>([]);
+  const [showPlanRequests, setShowPlanRequests] = useState(false);
+  const [loadingRequests, setLoadingRequests] = useState(false);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -94,6 +97,23 @@ const AdminDashboard: React.FC = () => {
     };
     fetchUsers();
   }, []);
+
+  // Fetch pending plan change requests
+  useEffect(() => {
+    if (!showPlanRequests) return;
+    setLoadingRequests(true);
+    api.get('/api/admin/plan-requests')
+      .then(res => setPlanRequests(res.data))
+      .catch(() => setPlanRequests([]))
+      .finally(() => setLoadingRequests(false));
+  }, [showPlanRequests]);
+
+  // Approve/reject handler
+  const handlePlanRequestDecision = async (requestId: string, decision: 'approved' | 'rejected') => {
+    await api.post(`/api/admin/plan-requests/${requestId}/decision`, { decision });
+    setPlanRequests(reqs => reqs.filter(r => r._id !== requestId));
+    showNotification(`Request ${decision === 'approved' ? 'approved' : 'rejected'}!`, decision === 'approved' ? 'success' : 'error');
+  };
 
   const isUserActive = (user: User) => {
     if (!user.lastLogin) return false;
@@ -150,18 +170,64 @@ const AdminDashboard: React.FC = () => {
           </div>
           <span className="text-xl font-bold tracking-wide">Admin Panel</span>
         </div>
-        <button
-          onClick={() => {
-            localStorage.removeItem('defaultBoardId');
-            navigate('/board');
-          }}
-          className="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/30 backdrop-blur-md text-white px-6 py-2.5 rounded-lg font-semibold shadow-lg shadow-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-400/50 border border-blue-400/20 transition-all duration-300"
-          aria-label="Back to boards"
-        >
-          <FaArrowLeft />
-          Back to boards
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => {
+              localStorage.removeItem('defaultBoardId');
+              navigate('/board');
+            }}
+            className="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/30 backdrop-blur-md text-white px-6 py-2.5 rounded-lg font-semibold shadow-lg shadow-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-400/50 border border-blue-400/20 transition-all duration-300"
+            aria-label="Back to boards"
+          >
+            <FaArrowLeft />
+            Back to boards
+          </button>
+          <button onClick={() => setShowPlanRequests(true)} className="relative">
+            <FaBell size={32} color="#3b82f6" />
+            {planRequests.length > 0 && <span className="absolute -top-2 -right-2 bg-red-500 border-2 border-white text-white w-4 h-4 rounded-full flex items-center justify-center"></span>}
+          </button>
+        </div>
       </div>
+      {showPlanRequests && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg relative animate-pop-in">
+            <button onClick={() => setShowPlanRequests(false)} className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold">&times;</button>
+            <h2 className="text-2xl font-bold mb-6 text-center text-blue-700 flex items-center justify-center gap-2">
+              <FaBell size={28} color="#3b82f6" /> Pending Plan Change Requests
+            </h2>
+            {loadingRequests ? (
+              <div className="flex items-center justify-center py-8 text-blue-600 font-semibold">Loading...</div>
+            ) : planRequests.length === 0 ? (
+              <div className="text-gray-500 text-center py-8">No pending requests.</div>
+            ) : (
+              <ul className="space-y-6">
+                {planRequests.map(req => (
+                  <li key={req._id} className="border border-blue-100 rounded-xl p-5 bg-blue-50/40 flex flex-col gap-2 shadow-sm">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="bg-blue-200 text-blue-800 rounded-full px-3 py-1 font-semibold text-sm">
+                        {req.user?.username || 'Unknown User'}
+                      </div>
+                      <div className="text-gray-500 text-xs">{req.user?.email}</div>
+                    </div>
+                    <div className="flex gap-4 mb-2">
+                      <div className="bg-blue-600 text-white rounded px-3 py-1 text-sm font-bold shadow-sm border border-blue-700">
+                        Current: <span className="font-bold">{req.user?.plan}</span>
+                      </div>
+                      <div className="bg-green-600 text-white rounded px-3 py-1 text-sm font-bold shadow-sm border border-green-700">
+                        Requested: <span className="font-bold">{req.requestedPlan}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 mt-2 justify-end">
+                      <button onClick={() => handlePlanRequestDecision(req._id, 'approved')} className="bg-green-500 hover:bg-green-600 text-white px-4 py-1.5 rounded font-semibold shadow transition">Approve</button>
+                      <button onClick={() => handlePlanRequestDecision(req._id, 'rejected')} className="bg-red-500 hover:bg-red-600 text-white px-4 py-1.5 rounded font-semibold shadow transition">Reject</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
       <div className="flex flex-1">
         {/* Sidebar */}
         <aside className="w-64 bg-gray-900/50 backdrop-blur-md border-r border-gray-700 p-6">
