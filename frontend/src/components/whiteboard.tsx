@@ -1270,6 +1270,18 @@ const Whiteboard: React.FC = () => {
         </div>
       ) : selectedBoard ? (
         <>
+          {/* Save button for edit permission (shared link, not owner) */}
+          {(sharePermission === 'edit' && !isOwner) && (
+            <div className="w-full flex justify-end px-8 py-2">
+              <button
+                onClick={saveBoardContent}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded shadow transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled={saving}
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          )}
           {/* Board List and Create: only for owner, not for share links */}
           {isOwner && sharePermission !== 'view' && (
             <div className="w-full px-8 py-4">

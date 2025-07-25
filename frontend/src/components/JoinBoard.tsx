@@ -21,7 +21,7 @@ const JoinBoard: React.FC = () => {
     }
     if (!jwt) {
       // Not logged in, store intended path and redirect to login
-      localStorage.setItem('share-redirect', location.pathname + location.search);
+      localStorage.setItem('auth-redirect', location.pathname + location.search);
       navigate('/login');
       return;
     }
@@ -30,7 +30,7 @@ const JoinBoard: React.FC = () => {
       .then(res => {
         const { boardId, permission } = res.data;
         console.log('JoinBoard: shareToken', token, 'boardId', boardId, 'permission', permission);
-        localStorage.removeItem('share-redirect');
+        localStorage.removeItem('auth-redirect');
         navigate(`/board/${boardId}?shareToken=${token}&permission=${permission}`);
       })
       .catch(err => {
