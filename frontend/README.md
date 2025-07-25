@@ -67,3 +67,22 @@ export default tseslint.config([
   },
 ])
 ```
+
+## Environment Variables
+
+Create a `.env` file in the frontend root:
+
+```
+VITE_API_URL=https://your-backend-api-url
+```
+
+For local dev, use:
+```
+VITE_API_URL=http://localhost:5001
+```
+
+## Production Deployment
+
+- Set `VITE_API_URL` to your deployed backend API URL (e.g., on EC2).
+- Deploy to Vercel/Netlify as a static site.
+- Ensure CORS is set correctly on the backend for your frontend domain.

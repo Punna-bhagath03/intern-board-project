@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api';
 
-const API_URL = 'http://localhost:5001/api';
-
 const JoinBoard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -26,7 +24,7 @@ const JoinBoard: React.FC = () => {
       return;
     }
     // If logged in, call /api/share/:token, get boardId, and navigate to /board/:id?shareToken=...
-    api.get(`${API_URL}/share/${token}`)
+    api.get(`/share/${token}`)
       .then(res => {
         const { boardId, permission } = res.data;
         console.log('JoinBoard: shareToken', token, 'boardId', boardId, 'permission', permission);

@@ -13,23 +13,40 @@ const Decor = require('./models/Decor');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const helmet = require('helmet');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-//  Middleware
-app.use(express.json({ limit: '20mb' }));
-
+// CORS middleware at the very top for all routes and preflight
 app.use(
   cors({
-    origin: 'http://localhost:5173',
+    origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-share-token'], // <-- add 'x-share-token' here
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-share-token'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   })
 );
-
+// Global handler for OPTIONS preflight requests
 app.options('*', cors());
+
+//  Middleware
+app.use(express.json({ limit: '20mb' }));
+app.use(helmet());
+app.use(compression());
+// Only enable rate limiting in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+  }));
+}
 
 //  Health check route
 app.get('/', (req, res) => {
@@ -247,8 +264,25 @@ app.post('/api/backgrounds', backgroundUpload.single('image'), (req, res) => {
 // Serve static files for decor uploads
 app.use('/uploads/decors', express.static(path.join(__dirname, '../uploads/decors')));
 
-// Serve all uploads (avatars, decors, etc.)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Serve /uploads with CORS headers ONLY for this route
+app.use('/uploads', express.static(
+  path.join(__dirname, '../uploads'),
+  {
+    setHeaders: (res, filePath) => {
+      res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    }
+  }
+));
+
+// Explicit OPTIONS handler for /uploads/*
+app.options('/uploads/*', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.sendStatus(204);
+});
 
 // GET /api/users/:id - get user info (username, avatar)
 app.get('/api/users/:id', async (req, res) => {
