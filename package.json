@@ -1,6 +1,9 @@
 {
   "dependencies": {
     "@types/lodash": "^4.17.20",
+    "compression": "^1.8.1",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
     "html2canvas": "^1.4.1",
     "lodash": "^4.17.21",
     "nodemailer": "^7.0.5",
