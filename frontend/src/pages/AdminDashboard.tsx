@@ -241,8 +241,8 @@ const AdminDashboard: React.FC = () => {
             <button onClick={() => navigate('/admin/plans-roles')} className="flex items-center gap-3 px-6 py-3.5 rounded-lg bg-gray-800/40 hover:bg-gray-700/40 focus:bg-gray-700/40 backdrop-blur-md font-semibold text-white focus:outline-none border border-gray-600/20 shadow-lg shadow-gray-900/20 transition-all duration-300">
               <FaUserCog /> Plans & Roles
             </button>
-            <button onClick={() => navigate('/admin/users')} className="flex items-center gap-3 px-6 py-3.5 rounded-lg bg-gray-800/40 hover:bg-gray-700/40 focus:bg-gray-700/40 backdrop-blur-md font-semibold text-white focus:outline-none border border-gray-600/20 shadow-lg shadow-gray-900/20 transition-all duration-300">
-              <FaFlag /> Flagged content
+            <button onClick={() => navigate('/admin/content-moderation')} className="flex items-center gap-3 px-6 py-3.5 rounded-lg bg-gray-800/40 hover:bg-gray-700/40 focus:bg-gray-700/40 backdrop-blur-md font-semibold text-white focus:outline-none border border-gray-600/20 shadow-lg shadow-gray-900/20 transition-all duration-300">
+              <FaFlag /> Content Moderation
             </button>
             <button onClick={() => navigate('/admin/send-mail')} className="flex items-center gap-3 px-6 py-3.5 rounded-lg bg-gray-800/40 hover:bg-gray-700/40 focus:bg-gray-700/40 backdrop-blur-md font-semibold text-white focus:outline-none border border-gray-600/20 shadow-lg shadow-gray-900/20 transition-all duration-300">
               <FaEnvelope /> Email

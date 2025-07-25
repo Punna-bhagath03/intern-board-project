@@ -18,6 +18,7 @@ import { useNotification } from './NotificationContext';
 import BoardRedirector from './components/BoardRedirector';
 import Pricing from './pages/Pricing';
 import AdminSendMail from './pages/AdminSendMail';
+import ContentModeration from './pages/ContentModeration';
 
 function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) {
   const token = localStorage.getItem('token');
@@ -150,6 +151,11 @@ function App() {
         <Route path="/admin/send-mail" element={
           <ProtectedRoute adminOnly={true}>
             <AdminSendMail />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/content-moderation" element={
+          <ProtectedRoute adminOnly={true}>
+            <ContentModeration />
           </ProtectedRoute>
         } />
         <Route path="*" element={<Navigate to="/" replace />} />
