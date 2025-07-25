@@ -77,9 +77,14 @@ export default function Login() {
         }
 
         // Handle redirects in order of priority
-        const authRedirect = localStorage.getItem('auth-redirect');
+        let authRedirect = localStorage.getItem('auth-redirect');
+        // Backward compatibility: check for old 'share-redirect' key
+        if (!authRedirect) {
+          authRedirect = localStorage.getItem('share-redirect');
+        }
         if (authRedirect) {
           localStorage.removeItem('auth-redirect');
+          localStorage.removeItem('share-redirect');
           navigate(authRedirect);
           return;
         }
@@ -125,7 +130,14 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 flex flex-col items-center justify-center px-4 relative">
+      {/* MI-Board logo and name top left */}
+      <div className="absolute top-6 left-6 flex items-center gap-3 cursor-pointer z-10" onClick={() => navigate('/')}> 
+        <div className="bg-blue-600 rounded-lg p-2">
+          <svg width="28" height="28" fill="none" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#2563eb"/><path d="M10 16h12M16 10v12" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>
+        </div>
+        <span className="text-2xl font-extrabold text-white tracking-tight">MI-Board</span>
+      </div>
       <form
         onSubmit={handleLogin}
         className="bg-gray-900/50 backdrop-blur-md p-8 rounded-2xl shadow-lg border border-gray-700 w-full max-w-md"
