@@ -710,10 +710,6 @@ const Whiteboard: React.FC = () => {
     });
   };
 
-  const handleImageClick = (id: number) => {
-    setSelectedImageId(id);
-  };
-
   // Set shape for selected image
   const handleShapeSelect = (shape: 'rectangle' | 'circle') => {
     setImages((prev) =>
@@ -833,20 +829,7 @@ const Whiteboard: React.FC = () => {
     link.click();
   };
 
-  // Spinner CSS 
-  const spinnerStyle: React.CSSProperties = {
-    display: 'inline-block',
-    width: 18,
-    height: 18,
-    border: '2.5px solid #bbb',
-    borderTop: '2.5px solid #333',
-    borderRadius: '50%',
-    animation: 'spin 0.7s linear infinite',
-    verticalAlign: 'middle',
-    marginLeft: 8,
-    opacity: 1,
-    transition: 'opacity 0.2s',
-  };
+  // Removed unused spinnerStyle variable
 
   // Add keyframes for spinner animation
   const spinnerKeyframes = `@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`;
@@ -857,22 +840,11 @@ const Whiteboard: React.FC = () => {
     document.head.appendChild(style);
   }
 
-  // Board name editing state
-  const [renameBoardName, setRenameBoardName] = useState('');
-  const [deletingBoardId, setDeletingBoardId] = useState<string | null>(null);
+  // Removed unused state variables
 
   // Removed polling - no continuous loading needed
 
-  // 5. Refresh handler
-  const handleRefreshBoard = async () => {
-    if (!selectedBoard) return;
-    try {
-      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-      if (shareToken) headers['x-share-token'] = shareToken;
-      const res = await api.get(`/api/boards/${selectedBoard._id}`, { headers });
-      loadBoardContent(res.data);
-    } catch {}
-  };
+  // Removed unused handleRefreshBoard function
 
   // Fetch userId on mount
   useEffect(() => {
@@ -1007,17 +979,7 @@ const Whiteboard: React.FC = () => {
     }
   };
 
-  // Username change handler
-  const handleSettingsUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSettingsUsername(e.target.value);
-    setSettingsChanged(true);
-  };
-
-  // Password change handler
-  const handleSettingsPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSettingsPassword(e.target.value);
-    setSettingsChanged(true);
-  };
+  // Removed unused settings change handlers
 
   // Update settingsChanged logic to enable Save if any field is changed (username, password, or avatar)
   useEffect(() => {
@@ -1033,27 +995,9 @@ const Whiteboard: React.FC = () => {
   // Determine if the current user is the owner
   const isOwner = selectedBoard && selectedBoard.user === userId;
 
-  const [ownerUsername, setOwnerUsername] = useState<string | null>(null);
-  // 1. Add error state for owner username fetch
-  const [ownerUsernameError, setOwnerUsernameError] = useState(false);
+  // Removed unused owner username state variables
 
-  // Fetch the owner's username if not owner
-  useEffect(() => {
-    if (selectedBoard && selectedBoard.user && selectedBoard.user !== userId) {
-             api.get(`/api/users/${selectedBoard.user}`)
-        .then(res => {
-          setOwnerUsername(res.data.username);
-          setOwnerUsernameError(false);
-        })
-        .catch(() => {
-          setOwnerUsername(null);
-          setOwnerUsernameError(true);
-        });
-    } else {
-      setOwnerUsername(null);
-      setOwnerUsernameError(false);
-    }
-  }, [selectedBoard, userId]);
+  // Removed unused owner username fetch effect
 
   // Restore handleDecorUpload for decor image uploads
   const handleDecorUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1119,11 +1063,6 @@ const Whiteboard: React.FC = () => {
 
   // Update your feature restriction checks
   const boardLimitReached = (isBasic && boards.length >= 2) || (isPro && boards.length >= 5);
-  const canUploadDecor = !isBasic || decors.length < 2;
-  const canUseFrames = !isBasic;
-  const canDownload = isPro || isProPlus;
-  const canShare = isProPlus;
-  const canReset = isPro || isProPlus;
 
   const openUpgradeModal = (feature: string, requiredPlan?: string) => {
     setUpgradeFeature(feature);
