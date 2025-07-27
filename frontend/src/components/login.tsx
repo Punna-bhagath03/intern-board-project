@@ -91,6 +91,7 @@ export default function Login() {
           authRedirect = localStorage.getItem('share-redirect');
         }
         if (authRedirect) {
+          console.log('Login: Redirecting to stored path:', authRedirect);
           localStorage.removeItem('auth-redirect');
           localStorage.removeItem('share-redirect');
           navigate(authRedirect);

@@ -12,6 +12,12 @@ const JoinBoard: React.FC = () => {
     const params = new URLSearchParams(location.search);
     const token = params.get('token');
     
+    console.log('JoinBoard: Processing share link', { 
+      token: token ? `${token.substring(0, 10)}...` : null,
+      pathname: location.pathname,
+      search: location.search 
+    });
+    
     if (!token) {
       setError('No token provided.');
       setLoading(false);
