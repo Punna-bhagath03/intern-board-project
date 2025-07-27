@@ -21,7 +21,7 @@ import { getCurrentUser } from '../api';
 const getAvatarUrl = (avatar: string | null | undefined): string => {
   if (!avatar) return '';
   if (avatar.startsWith('http')) return avatar;
-  return `http://localhost:5001/${avatar.replace(/^\/+/, '')}`;
+  return `${import.meta.env.VITE_API_URL?.replace(/\/$/, '')}/${avatar.replace(/^\/+/, '')}`;
 };
 
 interface ImageItem {
@@ -40,8 +40,6 @@ interface Board {
   content: any;
   user: string; // Add this line to fix linter errors for board.user
 }
-
-const API_URL = 'http://localhost:5001/api';
 
 // Preloaded decor images
 const PRELOADED_DECORS = [
@@ -175,9 +173,9 @@ function SettingsModal({
           <div>
             <label className="block text-sm font-semibold mb-1">Avatar</label>
             <div className="flex items-center gap-4">
-              {(settingsAvatarPreview || userAvatar) ? (
+              {(settingsAvatarPreview || (userAvatar && userAvatar.startsWith('data:') ? userAvatar : undefined)) ? (
                 <div className="relative">
-                  <img src={settingsAvatarPreview || getAvatarUrl(userAvatar)} alt="Avatar" className="w-16 h-16 rounded-full border object-cover" />
+                  <img src={settingsAvatarPreview || (userAvatar && userAvatar.startsWith('data:') ? userAvatar : undefined)} alt="Avatar" className="w-16 h-16 rounded-full border object-cover" />
                   <button
                     type="button"
                     className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center shadow border-2 border-white"
@@ -571,7 +569,7 @@ const Whiteboard: React.FC = () => {
       frames: canvasFrames, // persist frames
     };
     try {
-      const res = await fetch(`${API_URL}/boards/${selectedBoard._id}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/boards/${selectedBoard._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -603,7 +601,7 @@ const Whiteboard: React.FC = () => {
     if (!newBoardName.trim() || !token) return;
     try {
       const res = await api.post(
-        `${API_URL}/boards`,
+        '/api/boards',
         { name: newBoardName, content: {} },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -637,21 +635,26 @@ const Whiteboard: React.FC = () => {
   // Update handleBackgroundUpload to upload the file to the backend and use the returned URL
   const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      // Upload to backend
-      const formData = new FormData();
-      formData.append('image', file);
-      try {
-        const res = await api.post('http://localhost:5001/api/backgrounds', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        if (res.data && res.data.url) {
-          setBackgroundImage(`http://localhost:5001${res.data.url}`);
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64String = reader.result as string;
+      setBackgroundImage(base64String);
+      // Update the board's content with the new backgroundImage (base64)
+      if (selectedBoard && token) {
+        try {
+          const updatedContent = { ...selectedBoard.content, backgroundImage: base64String };
+          const res = await api.put(`/api/boards/${selectedBoard._id}`, { content: updatedContent }, { headers: { Authorization: `Bearer ${token}` } });
+          if (res.data && res.data.content) {
+            setSelectedBoard({ ...selectedBoard, content: res.data.content });
+          }
+        } catch (err) {
+          showNotification('Failed to update background image', 'error');
         }
-      } catch (err) {
-        // Optionally show error to user
       }
-    }
+    };
+    reader.readAsDataURL(file);
+    if (backgroundInputRef.current) backgroundInputRef.current.value = '';
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -698,7 +701,7 @@ const Whiteboard: React.FC = () => {
   const handleReset = async () => {
     if (selectedBoard && token) {
       try {
-        await fetch(`${API_URL}/boards/${selectedBoard._id}/archive`, {
+        await fetch(`${import.meta.env.VITE_API_URL}/api/boards/${selectedBoard._id}/archive`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -746,7 +749,7 @@ const Whiteboard: React.FC = () => {
     const confirmDelete = window.confirm('Are you sure you want to delete this board? This action cannot be undone.');
     if (!confirmDelete) return;
     try {
-      const res = await fetch(`${API_URL}/boards/${boardId}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/boards/${boardId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -841,7 +844,7 @@ const Whiteboard: React.FC = () => {
       try {
         const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
         if (shareToken) headers['x-share-token'] = shareToken;
-        const res = await api.get(`${API_URL}/boards/${selectedBoard._id}`, { headers });
+        const res = await api.get(`${import.meta.env.VITE_API_URL}/api/boards/${selectedBoard._id}`, { headers });
         const newHash = hashBoardContent(res.data.content);
         if (lastBoardHash && newHash !== lastBoardHash) {
           setShowRefresh(true);
@@ -865,7 +868,7 @@ const Whiteboard: React.FC = () => {
     try {
       const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
       if (shareToken) headers['x-share-token'] = shareToken;
-      const res = await api.get(`${API_URL}/boards/${selectedBoard._id}`, { headers });
+      const res = await api.get(`${import.meta.env.VITE_API_URL}/api/boards/${selectedBoard._id}`, { headers });
       loadBoardContent(res.data);
       setLastBoardHash(hashBoardContent(res.data.content));
       setShowRefresh(false);
@@ -994,9 +997,33 @@ const Whiteboard: React.FC = () => {
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setSettingsAvatarFile(file);
-      setSettingsAvatarPreview(URL.createObjectURL(file));
-      setSettingsChanged(true);
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64String = reader.result as string;
+        setSettingsAvatarPreview(base64String);
+        setSettingsAvatarFile(null); // No file upload needed
+        setSettingsAvatar(base64String);
+        setUserAvatar(base64String);
+        setSettingsChanged(true);
+        // Immediately update avatar in backend
+        if (userId && token) {
+          try {
+            const res = await api.patch(
+              `/api/users/${userId}`,
+              { avatar: base64String },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (res.data && res.data.avatar) {
+              setUserAvatar(res.data.avatar);
+              setSettingsAvatar(res.data.avatar);
+              localStorage.setItem('avatar', res.data.avatar);
+            }
+          } catch (err) {
+            showNotification('Failed to update avatar', 'error');
+          }
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -1032,7 +1059,7 @@ const Whiteboard: React.FC = () => {
   // Fetch the owner's username if not owner
   useEffect(() => {
     if (selectedBoard && selectedBoard.user && selectedBoard.user !== userId) {
-      api.get(`${API_URL}/users/${selectedBoard.user}`)
+      api.get(`${import.meta.env.VITE_API_URL}/users/${selectedBoard.user}`)
         .then(res => {
           setOwnerUsername(res.data.username);
           setOwnerUsernameError(false);
@@ -1199,6 +1226,47 @@ const Whiteboard: React.FC = () => {
       const errorMessage = err.response?.data?.message || 'Failed to update plan';
       showNotification(errorMessage, 'error');
     }
+  };
+
+  // Add a manual refresh button and notification if board has changed
+  const [boardChanged, setBoardChanged] = useState(false);
+
+  // Effect to check for board changes (no polling, just on demand)
+  useEffect(() => {
+    if (!selectedBoard) return;
+    setLastBoardHash(hashBoardContent(selectedBoard.content));
+    setShowRefresh(false);
+    setBoardChanged(false);
+  }, [selectedBoard]);
+
+  const checkForBoardUpdate = async () => {
+    if (!selectedBoard) return;
+    try {
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+      if (shareToken) headers['x-share-token'] = shareToken;
+      const res = await api.get(`/api/boards/${selectedBoard._id}`, { headers });
+      const newHash = hashBoardContent(res.data.content);
+      if (lastBoardHash && newHash !== lastBoardHash) {
+        setBoardChanged(true);
+        setShowRefresh(true);
+      } else {
+        setBoardChanged(false);
+        setShowRefresh(false);
+      }
+    } catch {}
+  };
+
+  const handleManualRefresh = async () => {
+    if (!selectedBoard) return;
+    try {
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+      if (shareToken) headers['x-share-token'] = shareToken;
+      const res = await api.get(`/api/boards/${selectedBoard._id}`, { headers });
+      loadBoardContent(res.data);
+      setLastBoardHash(hashBoardContent(res.data.content));
+      setShowRefresh(false);
+      setBoardChanged(false);
+    } catch {}
   };
 
   return (
@@ -1880,6 +1948,11 @@ const Whiteboard: React.FC = () => {
       )}
       {/* Upgrade Modal */}
       <UpgradeModal open={upgradeModalOpen} onClose={() => setUpgradeModalOpen(false)} feature={upgradeFeature} requiredPlan={upgradeRequiredPlan} />
+      {showRefresh && (
+        <div className="fixed top-20 right-8 z-50 bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-2 rounded shadow">
+          Board has changed. <button onClick={handleManualRefresh} className="underline text-blue-600">Refresh</button>
+        </div>
+      )}
     </div>
   );
 };

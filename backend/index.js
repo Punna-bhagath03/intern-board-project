@@ -13,23 +13,40 @@ const Decor = require('./models/Decor');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const helmet = require('helmet');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-//  Middleware
-app.use(express.json({ limit: '20mb' }));
-
+// CORS middleware at the very top for all routes and preflight
 app.use(
   cors({
-    origin: 'http://localhost:5173',
+    origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-share-token'], // <-- add 'x-share-token' here
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-share-token'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   })
 );
-
+// Global handler for OPTIONS preflight requests
 app.options('*', cors());
+
+//  Middleware
+app.use(express.json({ limit: '20mb' }));
+app.use(helmet());
+app.use(compression());
+// Only enable rate limiting in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+  }));
+}
 
 //  Health check route
 app.get('/', (req, res) => {
@@ -153,20 +170,35 @@ app.post('/login', async (req, res) => {
 
 // Auth middleware for /api/users/me
 async function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'No token provided' });
-  jwt.verify(token, process.env.JWT_SECRET, async (err, payload) => {
-    if (err) return res.status(403).json({ message: 'Invalid token' });
-    // Check tokenVersion
-    const user = await User.findById(payload.userId);
-    if (!user) return res.status(401).json({ message: 'User not found' });
-    if ((user.tokenVersion || 0) !== (payload.tokenVersion || 0)) {
-      return res.status(401).json({ message: 'Session expired, please log in again.' });
-    }
-    req.user = payload;
-    next();
-  });
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'No token provided' });
+    
+    jwt.verify(token, process.env.JWT_SECRET, async (err, payload) => {
+      if (err) {
+        console.error('JWT verification error:', err);
+        return res.status(403).json({ message: 'Invalid token' });
+      }
+      
+      try {
+        // Check tokenVersion
+        const user = await User.findById(payload.userId);
+        if (!user) return res.status(401).json({ message: 'User not found' });
+        if ((user.tokenVersion || 0) !== (payload.tokenVersion || 0)) {
+          return res.status(401).json({ message: 'Session expired, please log in again.' });
+        }
+        req.user = payload;
+        next();
+      } catch (dbErr) {
+        console.error('Database error in auth middleware:', dbErr);
+        return res.status(500).json({ message: 'Authentication error' });
+      }
+    });
+  } catch (err) {
+    console.error('Auth middleware error:', err);
+    return res.status(500).json({ message: 'Authentication error' });
+  }
 }
 
 // GET /api/users/me - get current user info (username, avatar, role, plan)
@@ -184,23 +216,7 @@ app.get('/api/users/me', authenticateToken, async (req, res) => {
 app.use('/api', boardRoutes);
 app.use('/api/admin', adminRouter);
 
-// Ensure uploads/avatars directory exists
-const avatarsDir = path.join(__dirname, '../uploads/avatars');
-if (!fs.existsSync(avatarsDir)) {
-  fs.mkdirSync(avatarsDir, { recursive: true });
-}
-
-// Multer setup for avatar uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, avatarsDir);
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    cb(null, `${req.params.id}_${Date.now()}${ext}`);
-  },
-});
-const upload = multer({ storage });
+// Avatar handling is now done with base64 data stored in database
 
 // Ensure uploads/backgrounds directory exists
 const backgroundsDir = path.join(__dirname, '../uploads/backgrounds');
@@ -247,22 +263,45 @@ app.post('/api/backgrounds', backgroundUpload.single('image'), (req, res) => {
 // Serve static files for decor uploads
 app.use('/uploads/decors', express.static(path.join(__dirname, '../uploads/decors')));
 
-// Serve all uploads (avatars, decors, etc.)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Serve /uploads with CORS headers ONLY for this route
+app.use('/uploads', express.static(
+  path.join(__dirname, '../uploads'),
+  {
+    setHeaders: (res, filePath) => {
+      res.setHeader('Access-Control-Allow-Origin', process.env.CLIENT_ORIGIN || 'http://localhost:5173');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    }
+  }
+));
+
+// Explicit OPTIONS handler for /uploads/*
+app.options('/uploads/*', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', process.env.CLIENT_ORIGIN || 'http://localhost:5173');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.sendStatus(204);
+});
 
 // GET /api/users/:id - get user info (username, avatar)
 app.get('/api/users/:id', async (req, res) => {
   try {
+    // Validate ObjectId format
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: 'Invalid user ID format' });
+    }
+    
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json({ username: user.username, avatar: user.avatar });
   } catch (err) {
+    console.error('Error fetching user:', err);
     res.status(500).json({ message: 'Failed to fetch user' });
   }
 });
 
 // PATCH /api/users/:id - update username, password, email, avatar
-app.patch('/api/users/:id', upload.single('avatar'), async (req, res) => {
+app.patch('/api/users/:id', async (req, res) => {
   const { username, password, email } = req.body;
   const userId = req.params.id;
   const update = {};
@@ -291,8 +330,12 @@ app.patch('/api/users/:id', upload.single('avatar'), async (req, res) => {
     update.password = await bcrypt.hash(password, 10);
   }
 
-  if (req.file) {
-    update.avatar = `/uploads/avatars/${req.file.filename}`;
+  if (req.body.avatar) {
+    // Store base64 data directly in the database
+    update.avatar = req.body.avatar;
+  } else if (req.body.removeAvatar === 'true') {
+    // Remove avatar (set to empty string for default)
+    update.avatar = '';
   }
 
   try {
@@ -371,24 +414,42 @@ app.put('/api/users/:id/plan', authenticateToken, async (req, res) => {
   }
 });
 
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', err);
+  res.status(500).json({ message: 'Internal server error' });
+});
+
+// 404 handler for undefined routes
+app.use('*', (req, res) => {
+  res.status(404).json({ message: 'Route not found' });
+});
+
 // MongoDB Connection
 console.log('🔍 Connecting to MongoDB...');
 
 // Check if MONGO_URL exists
 if (!process.env.MONGO_URL) {
-  console.error(' MONGO_URL not found in .env file!');
+  console.error('❌ MONGO_URL not found in .env file!');
   process.exit(1);
 }
 
-// Connect to MongoDB
+// Connect to MongoDB with fallback for development
 mongoose
-  .connect(process.env.MONGO_URL)
+  .connect(process.env.MONGO_URL, {
+    serverSelectionTimeoutMS: 5000, // 5 second timeout
+    socketTimeoutMS: 45000, // 45 second timeout
+  })
   .then(() => {
-    console.log(' Connected to MongoDB');
+    console.log('✅ Connected to MongoDB Atlas');
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+      console.log(`🚀 Server running on port ${PORT}`);
     });
   })
   .catch((err) => {
-    console.error(' MongoDB connection failed:\n', err);
+    console.error('❌ MongoDB Atlas connection failed:', err.message);
+    console.log('💡 If you want to use local MongoDB for development, update your .env file:');
+    console.log('   MONGO_URL=mongodb://localhost:27017/intern-board');
+    console.log('💡 Or add your IP to MongoDB Atlas whitelist: https://cloud.mongodb.com');
+    process.exit(1);
   });

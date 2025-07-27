@@ -110,23 +110,27 @@ router.get('/boards/:id', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     const shareToken = req.headers['x-share-token'];
     console.log('GET /boards/:id', { boardId, userId, shareToken });
+    
     // Try owner access
     let board = await Board.findOne({ _id: boardId, user: userId });
     if (board) {
       console.log('Access: owner', { boardId, userId });
       return res.json(board);
     }
+    
     // Try collaborator access
     board = await Board.findOne({ _id: boardId, 'collaborators.userId': userId });
     if (board) {
       console.log('Access: collaborator', { boardId, userId });
       return res.json(board);
     }
+    
     // Try share token access
     if (shareToken) {
-      const ShareLink = require('../models/ShareLink');
+      console.log('Checking share token access for:', { shareToken, boardId });
       const shareLink = await ShareLink.findOne({ token: shareToken, boardId });
       console.log('ShareLink found:', !!shareLink, shareLink);
+      
       if (shareLink && shareLink.expiresAt > new Date()) {
         board = await Board.findById(boardId);
         if (board) {
@@ -141,11 +145,19 @@ router.get('/boards/:id', authenticateToken, async (req, res) => {
               console.log('Added as collaborator', { boardId, userId });
             }
           }
-          console.log('Access: share token', { boardId, userId });
+          console.log('Access: share token', { boardId, userId, permission: shareLink.permission });
           return res.json(board);
         }
+      } else if (shareLink && shareLink.expiresAt <= new Date()) {
+        console.log('Share link expired:', shareToken);
+        // Clean up expired share link
+        await ShareLink.deleteOne({ _id: shareLink._id });
+        return res.status(410).json({ message: 'Share link expired' });
+      } else {
+        console.log('Share link not found or invalid:', shareToken);
       }
     }
+    
     console.log('Access denied', { boardId, userId, shareToken });
     return res.status(404).json({ message: 'Board not found' });
   } catch (err) {
@@ -301,23 +313,41 @@ router.post('/boards/:boardId/share', authenticateToken, async (req, res) => {
  * No auth required. Returns board info if token is valid and not expired, with permission.
  */
 router.get('/share/:token', async (req, res) => {
-  const { token } = req.params;
-  const shareLink = await ShareLink.findOne({ token });
-  if (!shareLink) return res.status(404).json({ message: 'Invalid or expired link' });
-  if (shareLink.expiresAt < new Date()) {
-    await ShareLink.deleteOne({ _id: shareLink._id }); // Clean up expired
-    return res.status(410).json({ message: 'Link expired' });
+  try {
+    const { token } = req.params;
+    console.log('Share link verification request for token:', token);
+    
+    const shareLink = await ShareLink.findOne({ token });
+    if (!shareLink) {
+      console.log('Share link not found for token:', token);
+      return res.status(404).json({ message: 'Invalid or expired link' });
+    }
+    
+    if (shareLink.expiresAt < new Date()) {
+      console.log('Share link expired for token:', token);
+      await ShareLink.deleteOne({ _id: shareLink._id }); // Clean up expired
+      return res.status(410).json({ message: 'Link expired' });
+    }
+    
+    // Return board info and permission
+    const board = await Board.findById(shareLink.boardId);
+    if (!board) {
+      console.log('Board not found for share link:', shareLink.boardId);
+      return res.status(404).json({ message: 'Board not found' });
+    }
+    
+    console.log('Share link verified successfully:', { token, boardId: board._id, permission: shareLink.permission });
+    res.json({
+      boardId: board._id,
+      name: board.name,
+      content: board.content,
+      permission: shareLink.permission,
+      expiresAt: shareLink.expiresAt,
+    });
+  } catch (err) {
+    console.error('Error in share link verification:', err);
+    res.status(500).json({ message: 'Server error' });
   }
-  // Return board info and permission
-  const board = await Board.findById(shareLink.boardId);
-  if (!board) return res.status(404).json({ message: 'Board not found' });
-  res.json({
-    boardId: board._id,
-    name: board.name,
-    content: board.content,
-    permission: shareLink.permission,
-    expiresAt: shareLink.expiresAt,
-  });
 });
 
 /**
