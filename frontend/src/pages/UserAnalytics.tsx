@@ -21,7 +21,7 @@ const UserAnalytics: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const token = localStorage.getItem('token');
+        // Removed unused token variable
         const res = await api.get(`/api/admin/user/${id}/boards`);
         setBoards(Array.isArray(res.data) ? res.data : []);
       } catch (err: any) {

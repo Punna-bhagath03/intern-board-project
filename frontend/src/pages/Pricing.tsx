@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaGithub, FaRedditAlien, FaYoutube, FaXTwitter } from 'react-icons/fa6';
 import api from '../api';
 import { useNotification } from '../NotificationContext';
-import { refreshAuthToken } from '../api'; // Make sure this is imported
+// Removed unused refreshAuthToken import
 
 const PLAN_DETAILS = [
   {
@@ -141,7 +141,7 @@ const Pricing: React.FC = () => {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-          {PLAN_DETAILS.map((plan, idx) => {
+          {PLAN_DETAILS.map((plan) => {
             const isCurrent = getPlanKey(userPlan) === plan.name;
             let buttonText = isCurrent ? 'Current Plan' : `Get ${plan.name}`;
             return (

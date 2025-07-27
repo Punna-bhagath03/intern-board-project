@@ -26,7 +26,7 @@ const UserBoards: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [boardsLoading, setBoardsLoading] = useState(false);
   const [boardsError, setBoardsError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
+  // Removed unused search state
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -35,7 +35,6 @@ const UserBoards: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const token = localStorage.getItem('token');
         const res = await api.get('/api/admin/users');
         setUsers(Array.isArray(res.data) ? res.data : []);
         
@@ -61,7 +60,6 @@ const UserBoards: React.FC = () => {
       setBoardsLoading(true);
       setBoardsError(null);
       try {
-        const token = localStorage.getItem('token');
         const res = await api.get(`/api/admin/user/${selectedUser._id}/boards`);
         setBoards(Array.isArray(res.data) ? res.data : []);
       } catch (err: any) {
@@ -77,7 +75,6 @@ const UserBoards: React.FC = () => {
     if (!selectedUser) return;
     if (!window.confirm('Are you sure you want to delete this board? This action cannot be undone.')) return;
     try {
-      const token = localStorage.getItem('token');
       await api.delete(`/api/boards/${boardId}`);
       setBoards(prev => prev.filter(b => b._id !== boardId));
     } catch (err) {

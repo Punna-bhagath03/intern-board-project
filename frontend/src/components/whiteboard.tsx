@@ -343,7 +343,7 @@ const Whiteboard: React.FC = () => {
   const [upgradeRequiredPlan, setUpgradeRequiredPlan] = useState('');
   
   // Board loading state to prevent conflicts
-  const [boardLoaded, setBoardLoaded] = useState(false);
+  // Removed unused boardLoaded state
 
 
   // Refs
@@ -542,7 +542,7 @@ const Whiteboard: React.FC = () => {
         setBoards(res.data);
         setLoadingBoards(false);
       })
-      .catch((err) => {
+      .catch(() => {
         setError('Failed to fetch boards');
         setLoadingBoards(false);
       });
@@ -562,7 +562,7 @@ const Whiteboard: React.FC = () => {
     setImages(content.elements || []);
     setCanvasFrames(content.frames || []); // restore frames
     setSelectedImageId(null);
-    setBoardLoaded(true); // Mark board as loaded
+          // Board loaded successfully
   };
 
   // Save current board content to backend
@@ -754,21 +754,7 @@ const Whiteboard: React.FC = () => {
     Number(boardSize.width) >= 300 &&
     Number(boardSize.height) >= 300;
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    delete api.defaults.headers.common['Authorization'];
-    setBoards([]);
-    setSelectedBoard(null);
-    setNewBoardName('');
-    setBoardSize({ width: '600', height: '400' });
-    setBackgroundImage(null);
-    setImages([]);
-    setSelectedImageId(null);
-    setError(null);
-    setSaving(false);
-    setLoadingBoards(false);
-    navigate('/signup');
-  };
+  // Removed unused handleLogout function - using inline logout in JSX
 
   // Delete board with confirmation
   const handleDeleteBoard = async (boardId: string) => {
@@ -1090,52 +1076,12 @@ const Whiteboard: React.FC = () => {
   }, []);
 
   // Update your feature checks
-  const checkPlanFeatures = () => {
-    const currentPlan = userPlan || localStorage.getItem('userPlan') || 'Basic';
-    const isBasic = currentPlan === 'Basic';
-    const isPro = currentPlan === 'Pro';
-    const isProPlus = currentPlan === 'Pro+';
+  // Removed unused checkPlanFeatures function
 
-    return {
-      canCreateBoard: !isBasic || boards.length < 2,
-      canUploadDecor: !isBasic || decors.length < 2,
-      canUseFrames: !isBasic,
-      canDownload: isPro || isProPlus,
-      canShare: isProPlus,
-      canReset: isPro || isProPlus,
-      maxBoards: isBasic ? 2 : isPro ? 5 : Infinity,
-      maxFrames: isBasic ? 0 : isPro ? 1 : Infinity,
-      maxDecors: isBasic ? 2 : Infinity
-    };
-  };
-
-  const features = checkPlanFeatures();
+  // Removed unused features variable
 
   // Update handlePlanChange to use proper error handling
-  const handlePlanChange = async (plan: string) => {
-    if (!userId) {
-      showNotification('User data not loaded', 'error');
-      return;
-    }
-
-    try {
-      const res = await api.put(`/api/admin/user/${userId}/plan-role`, {
-        plan,
-        role: undefined
-      });
-
-      if (res.data.requiresReload) {
-        setUserPlan(plan);
-        localStorage.setItem('userPlan', plan);
-        showNotification(`Successfully upgraded to ${plan} plan!`, 'success');
-        navigate('/board');
-      }
-    } catch (err: any) {
-      console.error('Failed to update plan:', err);
-      const errorMessage = err.response?.data?.message || 'Failed to update plan';
-      showNotification(errorMessage, 'error');
-    }
-  };
+  // Removed unused handlePlanChange function
 
   // Removed polling and manual refresh - no continuous loading needed
 
@@ -1342,7 +1288,7 @@ const Whiteboard: React.FC = () => {
                     position={{ x: 0, y: 0 }}
                     disableDragging={true}
                     enableResizing={sharePermission !== 'view' ? { bottom: true, right: true, bottomRight: true } : {}}
-                    onResizeStop={(e, direction, ref) => {
+                    onResizeStop={(_, __, ref) => {
                       if (sharePermission === 'view') return;
                       setBoardSize({ width: ref.offsetWidth.toString(), height: ref.offsetHeight.toString() });
                     }}
@@ -1365,14 +1311,14 @@ const Whiteboard: React.FC = () => {
                         key={frame.id}
                         size={{ width: frame.width, height: frame.height }}
                         position={{ x: frame.x, y: frame.y }}
-                        onDragStop={(e, d) => {
+                        onDragStop={(_, d) => {
                           setCanvasFrames((prev) =>
                             prev.map((f) =>
                               f.id === frame.id ? { ...f, x: d.x, y: d.y } : f
                             )
                           );
                         }}
-                        onResizeStop={(e, direction, ref, delta, position) => {
+                        onResizeStop={(_, __, ref, ___, position) => {
                           setCanvasFrames((prev) =>
                             prev.map((f) =>
                               f.id === frame.id
@@ -1505,14 +1451,14 @@ const Whiteboard: React.FC = () => {
                           key={img.id}
                           size={{ width: img.width, height: img.height }}
                           position={{ x: img.x, y: img.y }}
-                          onDragStop={(e, d) => {
+                          onDragStop={(_, d) => {
                             setImages((prev) =>
                               prev.map((im, i) =>
                                 i === idx ? { ...im, x: d.x, y: d.y } : im
                               )
                             );
                           }}
-                          onResizeStop={(e, direction, ref, delta, position) => {
+                          onResizeStop={(_, __, ref, ___, position) => {
                             setImages((prev) =>
                               prev.map((im, i) =>
                                 i === idx

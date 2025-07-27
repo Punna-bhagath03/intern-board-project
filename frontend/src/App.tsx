@@ -4,7 +4,7 @@ import Signup from './components/signup';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Login from './components/login';
 import React, { useEffect, useState, useRef } from 'react';
-import FramesSection from './components/FramesSection';
+// Removed unused FramesSection import
 import JoinBoard from './components/JoinBoard';
 import LandingPage from './pages/LandingPage';
 import AdminDashboard from './pages/AdminDashboard';
