@@ -61,7 +61,7 @@ intern-board-project/
 
 **Example connection string:**
 ```
-mongodb+srv://yourusername:yourpassword@cluster0.xxxxx.mongodb.net/intern-board?retryWrites=true&w=majority
+mongodb+srv://username:password@cluster.mongodb.net/intern-board?retryWrites=true&w=majority
 ```
 
 ## 🔧 Step 2: Deploy Backend Service
@@ -99,7 +99,7 @@ Key: NODE_ENV
 Value: production
 
 Key: MONGODB_URI
-Value: mongodb+srv://yourusername:yourpassword@cluster0.xxxxx.mongodb.net/intern-board?retryWrites=true&w=majority
+Value: mongodb+srv://username:password@cluster.mongodb.net/intern-board?retryWrites=true&w=majority
 
 Key: JWT_SECRET
 Value: your-super-secret-jwt-key-here-make-it-long-and-random
