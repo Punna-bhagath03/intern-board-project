@@ -6,6 +6,15 @@ const SPARouter: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Handle share links specifically
+    const shareLink = sessionStorage.getItem('shareLink');
+    if (shareLink) {
+      console.log('SPARouter: Restoring share link', shareLink);
+      sessionStorage.removeItem('shareLink');
+      navigate(shareLink, { replace: true });
+      return;
+    }
+
     // Handle direct URL access for share links
     if (location.pathname === '/join' && location.search) {
       console.log('SPARouter: Detected share link access', location.search);
