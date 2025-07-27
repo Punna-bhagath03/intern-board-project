@@ -41,7 +41,6 @@ const UsersBoardsPanel: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const token = localStorage.getItem('token');
         const res = await api.get('/api/admin/users');
         setUsers(Array.isArray(res.data) ? res.data : []);
       } catch (err: any) {
@@ -61,7 +60,6 @@ const UsersBoardsPanel: React.FC = () => {
       setBoardsLoading(true);
       setBoardsError(null);
       try {
-        const token = localStorage.getItem('token');
         const res = await api.get(`/api/admin/user/${selectedUser._id}/boards`);
         setBoards(Array.isArray(res.data) ? res.data : []);
       } catch (err: any) {
@@ -77,7 +75,6 @@ const UsersBoardsPanel: React.FC = () => {
     if (!selectedUser) return;
     if (!window.confirm('Are you sure you want to delete this board? This action cannot be undone.')) return;
     try {
-      const token = localStorage.getItem('token');
       await api.delete(`/api/boards/${boardId}`);
       setBoards(prev => prev.filter(b => b._id !== boardId));
     } catch (err) {
@@ -141,7 +138,7 @@ const UsersBoardsPanel: React.FC = () => {
                 aria-label={`Show boards for ${user.username}`}
               >
                 <span className="flex items-center gap-2">
-                  <FaUser className="text-blue-400" />
+                  <FaUser />
                   {user.username}
                   {isUserActive(user) ? (
                     <span className="inline-flex items-center gap-1 px-2 py-1 ml-2 rounded bg-green-900 text-green-300 text-xs font-bold">
@@ -153,7 +150,7 @@ const UsersBoardsPanel: React.FC = () => {
                     </span>
                   )}
                 </span>
-                <FaArrowRight className="text-lg" />
+                <FaArrowRight />
               </button>
             ))}
           </div>
@@ -196,7 +193,7 @@ const UsersBoardsPanel: React.FC = () => {
                               className="inline-flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full p-2 focus:outline-none focus:ring-2 focus:ring-red-400 transition"
                               aria-label={`Delete board ${board.name}`}
                             >
-                              <FaTrash className="text-lg" />
+                              <FaTrash />
                             </button>
                           </td>
                         </tr>

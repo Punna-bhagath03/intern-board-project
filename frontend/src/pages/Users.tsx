@@ -26,8 +26,7 @@ const Users: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const token = localStorage.getItem('token');
-        const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/admin/users`;
+        // Removed unused token and url variables
         const res = await api.get('/api/admin/users');
         setUsers(Array.isArray(res.data) ? res.data : []);
       } catch (err: any) {

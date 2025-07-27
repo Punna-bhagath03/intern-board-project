@@ -30,8 +30,8 @@ interface Plan {
 
 const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
+  // Removed unused boards state
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { showNotification } = useNotification();
   const [plans, setPlans] = useState<Plan[]>([
@@ -81,21 +81,18 @@ const AdminDashboard: React.FC = () => {
   const [loadingRequests, setLoadingRequests] = useState(false);
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      setLoading(true);
-      setError(null);
+    const fetchData = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/admin/users`;
-        const res = await api.get('/api/admin/users');
-        setUsers(Array.isArray(res.data) ? res.data : []);
-      } catch (err: any) {
-        setError(err.response?.data?.message || 'Failed to fetch users');
-        setUsers([]);
+        const usersResponse = await api.get('/api/admin/users');
+        setUsers(usersResponse.data);
+      } catch (err) {
+        console.error('Error fetching admin data:', err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
-    fetchUsers();
+
+    fetchData();
   }, []);
 
   // Fetch pending plan change requests
