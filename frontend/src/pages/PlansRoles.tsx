@@ -45,7 +45,7 @@ const PlansRoles: React.FC = () => {
     // Fetch current user role
     const token = localStorage.getItem('token');
     if (!token) return;
-    api.get('http://localhost:5001/api/users/me', {
+          api.get('/api/users/me', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(res => {

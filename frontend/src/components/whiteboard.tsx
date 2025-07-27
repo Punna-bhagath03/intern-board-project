@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Rnd } from 'react-rnd';
 import api from '../api';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
@@ -17,11 +17,31 @@ import { FaSignOutAlt, FaShareAlt, FaArrowUp, FaTachometerAlt, FaEdit, FaTrash }
 import { useNotification } from '../NotificationContext';
 import { getCurrentUser } from '../api';
 
-// Helper to get absolute avatar URL
-const getAvatarUrl = (avatar: string | null | undefined): string => {
-  if (!avatar) return '';
-  if (avatar.startsWith('http')) return avatar;
-  return `${import.meta.env.VITE_API_URL?.replace(/\/$/, '')}/${avatar.replace(/^\/+/, '')}`;
+
+
+// Helper to handle avatar display - shows default profile photo or base64 data
+const getAvatarDisplay = (avatar: string | null | undefined, username: string): { type: 'default' | 'base64', content: string } => {
+  if (!avatar || avatar === '') {
+    // Return default profile photo with initial letter
+    return {
+      type: 'default',
+      content: username ? username.charAt(0).toUpperCase() : '?'
+    };
+  }
+  
+  // Check if it's base64 data
+  if (avatar.startsWith('data:image/')) {
+    return {
+      type: 'base64',
+      content: avatar
+    };
+  }
+  
+  // Fallback to default if it's an old file path
+  return {
+    type: 'default',
+    content: username ? username.charAt(0).toUpperCase() : '?'
+  };
 };
 
 interface ImageItem {
@@ -41,11 +61,7 @@ interface Board {
   user: string; // Add this line to fix linter errors for board.user
 }
 
-// Preloaded decor images
-const PRELOADED_DECORS = [
-  { src: '/src/assets/react.svg', name: 'React Logo' },
-  // Add more preloaded PNG/WebP paths here
-];
+
 
 // Add default decors 
 const DEFAULT_DECORS = [
@@ -95,7 +111,7 @@ interface SettingsModalProps {
   setShowPasswordInput: (v: boolean) => void;
   plan: string;
   setSettingsAvatar: (v: string | null) => void;
-  setSettingsAvatarFile: (v: File | null) => void;
+
   setUserAvatar: (v: string | null) => void;
 }
 
@@ -123,7 +139,7 @@ function SettingsModal({
   setShowPasswordInput,
   plan,
   setSettingsAvatar,
-  setSettingsAvatarFile,
+
   setUserAvatar,
 }: SettingsModalProps) {
   const hasFocusedRef = useRef(false);
@@ -173,16 +189,15 @@ function SettingsModal({
           <div>
             <label className="block text-sm font-semibold mb-1">Avatar</label>
             <div className="flex items-center gap-4">
-              {(settingsAvatarPreview || (userAvatar && userAvatar.startsWith('data:') ? userAvatar : undefined)) ? (
+              {(settingsAvatarPreview || (userAvatar && userAvatar.startsWith('data:image/'))) ? (
                 <div className="relative">
-                  <img src={settingsAvatarPreview || (userAvatar && userAvatar.startsWith('data:') ? userAvatar : undefined)} alt="Avatar" className="w-16 h-16 rounded-full border object-cover" />
+                  <img src={settingsAvatarPreview || userAvatar || ''} alt="Avatar" className="w-16 h-16 rounded-full border object-cover" />
                   <button
                     type="button"
                     className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center shadow border-2 border-white"
                     title="Remove photo"
                     onClick={() => {
                       setSettingsAvatarPreview(null);
-                      setSettingsAvatarFile(null);
                       setSettingsAvatar(null);
                       setUserAvatar(null); // Immediately update profile icon
                       setSettingsChanged(true);
@@ -302,7 +317,7 @@ const Whiteboard: React.FC = () => {
   const [settingsUsername, setSettingsUsername] = useState(username);
   const [settingsPassword, setSettingsPassword] = useState('');
   const [settingsAvatar, setSettingsAvatar] = useState<string | null>(null);
-  const [settingsAvatarFile, setSettingsAvatarFile] = useState<File | null>(null);
+
   const [settingsAvatarPreview, setSettingsAvatarPreview] = useState<string | null>(null);
   const [settingsChanged, setSettingsChanged] = useState(false);
   const [settingsEmail, setSettingsEmail] = useState('');
@@ -326,8 +341,10 @@ const Whiteboard: React.FC = () => {
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState('');
   const [upgradeRequiredPlan, setUpgradeRequiredPlan] = useState('');
-  const [showRefresh, setShowRefresh] = useState(false);
-  const [lastBoardHash, setLastBoardHash] = useState<string | null>(null);
+  
+  // Board loading state to prevent conflicts
+  const [boardLoaded, setBoardLoaded] = useState(false);
+
 
   // Refs
   const addImagesInputRef = useRef<HTMLInputElement | null>(null);
@@ -400,7 +417,7 @@ const Whiteboard: React.FC = () => {
       if (decorToDelete) {
         setImages((prev) =>
           prev.filter(
-            (img) => img.src !== `http://localhost:5001${decorToDelete.imageUrl}`
+                         (img) => img.src !== `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${decorToDelete.imageUrl}`
           )
         );
       }
@@ -459,6 +476,8 @@ const Whiteboard: React.FC = () => {
         localStorage.setItem('username', userData.username);
         if (userData.avatar) {
           localStorage.setItem('avatar', userData.avatar);
+        } else {
+          localStorage.removeItem('avatar');
         }
 
         // Load boards after confirming user is authenticated
@@ -482,7 +501,7 @@ const Whiteboard: React.FC = () => {
     loadUserData();
   }, [navigate, showNotification]);
 
-  // Load specific board when ID changes
+  // Load specific board when ID changes (only once)
   useEffect(() => {
     if (!id || !userId) return;
 
@@ -503,7 +522,7 @@ const Whiteboard: React.FC = () => {
     };
 
     loadBoard();
-  }, [id, userId, shareToken, navigate, showNotification]);
+  }, [id, userId, shareToken]); // Removed navigate and showNotification from dependencies
 
   const setBoardRef = (node: any) => {
     if (node && node.resizableElement) {
@@ -529,19 +548,7 @@ const Whiteboard: React.FC = () => {
       });
   }, [token]);
 
-  // On page load/refresh, always fetch the board content for the board in the URL
-  useEffect(() => {
-    if (!id) return;
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    api.get(`/api/boards/${id}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => {
-        if (res.data) loadBoardContent(res.data);
-      })
-      .catch(() => {
-        setError('Failed to load board content');
-      });
-  }, [id]);
+  // Removed duplicate board loading - handled by the above useEffect
 
   // Load board content into whiteboard
   const loadBoardContent = (board: Board) => {
@@ -555,6 +562,7 @@ const Whiteboard: React.FC = () => {
     setImages(content.elements || []);
     setCanvasFrames(content.frames || []); // restore frames
     setSelectedImageId(null);
+    setBoardLoaded(true); // Mark board as loaded
   };
 
   // Save current board content to backend
@@ -569,18 +577,15 @@ const Whiteboard: React.FC = () => {
       frames: canvasFrames, // persist frames
     };
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/boards/${selectedBoard._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ content }),
-      });
-      if (!res.ok) throw new Error('Failed to save');
-      setSaving(false);
-    } catch (e) {
-      setError('Failed to save board');
+      const res = await api.put(`/api/boards/${selectedBoard._id}`, { content });
+      if (res.status === 200) {
+        showNotification('Board saved successfully!', 'success');
+        setSaving(false);
+      }
+    } catch (err: any) {
+      console.error('Failed to save board:', err);
+      const errorMessage = err.response?.data?.message || 'Failed to save board';
+      showNotification(errorMessage, 'error');
       setSaving(false);
     }
   };
@@ -610,10 +615,7 @@ const Whiteboard: React.FC = () => {
       setNewBoardName('');
       setSelectedBoard(board);
       navigate(`/board/${board._id}`);
-      api.get(`/api/boards/${board._id}`, { headers: { Authorization: `Bearer ${token}` } })
-        .then(res => {
-          if (res.data) loadBoardContent(res.data);
-        });
+      // Removed automatic board loading - will be handled by useEffect when URL changes
     } catch (e) {
       setError('Failed to create board');
     }
@@ -626,10 +628,7 @@ const Whiteboard: React.FC = () => {
     if (!token) return;
     setSelectedBoard(board);
     navigate(`/board/${board._id}`);
-    api.get(`/api/boards/${board._id}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => {
-        if (res.data) loadBoardContent(res.data);
-      });
+    // Removed automatic board loading - will be handled by useEffect when URL changes
   };
 
   // Update handleBackgroundUpload to upload the file to the backend and use the returned URL
@@ -640,18 +639,7 @@ const Whiteboard: React.FC = () => {
     reader.onloadend = async () => {
       const base64String = reader.result as string;
       setBackgroundImage(base64String);
-      // Update the board's content with the new backgroundImage (base64)
-      if (selectedBoard && token) {
-        try {
-          const updatedContent = { ...selectedBoard.content, backgroundImage: base64String };
-          const res = await api.put(`/api/boards/${selectedBoard._id}`, { content: updatedContent }, { headers: { Authorization: `Bearer ${token}` } });
-          if (res.data && res.data.content) {
-            setSelectedBoard({ ...selectedBoard, content: res.data.content });
-          }
-        } catch (err) {
-          showNotification('Failed to update background image', 'error');
-        }
-      }
+      showNotification('Background image uploaded successfully - Click Save to persist changes', 'success');
     };
     reader.readAsDataURL(file);
     if (backgroundInputRef.current) backgroundInputRef.current.value = '';
@@ -659,15 +647,58 @@ const Whiteboard: React.FC = () => {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const newImages: ImageItem[] = files.map((file) => ({
-      id: Date.now() + Math.random(),
-      src: URL.createObjectURL(file),
-      x: 50,
-      y: 50,
-      width: 100,
-      height: 100,
-    }));
-    setImages((prev) => [...prev, ...newImages]);
+    
+    const processFiles = async () => {
+      const newImages: ImageItem[] = [];
+      
+      for (const file of files) {
+        try {
+          // Validate file type
+          if (!file.type.startsWith('image/')) {
+            showNotification('Please select a valid image file', 'error');
+            continue;
+          }
+          
+          // Validate file size (max 5MB)
+          if (file.size > 5 * 1024 * 1024) {
+            showNotification('Image file size must be less than 5MB', 'error');
+            continue;
+          }
+          
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          
+          // Validate base64 string
+          if (!base64.startsWith('data:image/')) {
+            showNotification('Failed to process image', 'error');
+            continue;
+          }
+          
+          newImages.push({
+            id: Date.now() + Math.random(),
+            src: base64,
+            x: 50,
+            y: 50,
+            width: 100,
+            height: 100,
+          });
+          
+          showNotification(`Image "${file.name}" uploaded successfully - Click Save to persist changes`, 'success');
+        } catch (error) {
+          showNotification('Failed to process image', 'error');
+        }
+      }
+      
+      if (newImages.length > 0) {
+        setImages((prev) => [...prev, ...newImages]);
+      }
+    };
+    
+    processFiles();
     if (addImagesInputRef.current) addImagesInputRef.current.value = '';
   };
 
@@ -830,37 +861,7 @@ const Whiteboard: React.FC = () => {
   const [renameBoardName, setRenameBoardName] = useState('');
   const [deletingBoardId, setDeletingBoardId] = useState<string | null>(null);
 
-  // 2. Utility to hash board content for change detection
-  function hashBoardContent(content: any) {
-    return JSON.stringify(content);
-  }
-
-  // 3. Poll for board changes for both owner and editors
-  useEffect(() => {
-    if (!selectedBoard) return;
-    // Only poll if owner or edit permission (not view-only)
-    if (sharePermission === 'view') return;
-    const interval = setInterval(async () => {
-      try {
-        const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-        if (shareToken) headers['x-share-token'] = shareToken;
-        const res = await api.get(`${import.meta.env.VITE_API_URL}/api/boards/${selectedBoard._id}`, { headers });
-        const newHash = hashBoardContent(res.data.content);
-        if (lastBoardHash && newHash !== lastBoardHash) {
-          setShowRefresh(true);
-        }
-      } catch {}
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [selectedBoard, sharePermission, token, shareToken, lastBoardHash]);
-
-  // 4. Set initial board hash when board loads
-  useEffect(() => {
-    if (selectedBoard) {
-      setLastBoardHash(hashBoardContent(selectedBoard.content));
-      setShowRefresh(false);
-    }
-  }, [selectedBoard]);
+  // Removed polling - no continuous loading needed
 
   // 5. Refresh handler
   const handleRefreshBoard = async () => {
@@ -868,46 +869,21 @@ const Whiteboard: React.FC = () => {
     try {
       const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
       if (shareToken) headers['x-share-token'] = shareToken;
-      const res = await api.get(`${import.meta.env.VITE_API_URL}/api/boards/${selectedBoard._id}`, { headers });
+      const res = await api.get(`/api/boards/${selectedBoard._id}`, { headers });
       loadBoardContent(res.data);
-      setLastBoardHash(hashBoardContent(res.data.content));
-      setShowRefresh(false);
     } catch {}
   };
 
-  // Fetch userId and avatar on mount
+  // Fetch userId on mount
   useEffect(() => {
     if (!token) return;
-    api.get('http://localhost:5001/api/boards', {
+    api.get('/api/boards', {
       headers: { Authorization: `Bearer ${token}` },
     }).then(res => {
       if (res.data && res.data.length > 0 && res.data[0].user) {
         setUserId(res.data[0].user);
       }
     });
-    // On mount, fetch user avatar after login
-    if (!token) return;
-    // Try to get avatar from localStorage first
-    const storedAvatar = localStorage.getItem('avatar');
-    if (storedAvatar) {
-      setUserAvatar(storedAvatar);
-    } else {
-      // Fetch user info (avatar) from backend
-      api.get('http://localhost:5001/api/users/me')
-        .then(res => {
-          if (res.data && res.data.avatar) {
-            setUserAvatar(res.data.avatar);
-            localStorage.setItem('avatar', res.data.avatar);
-          } else {
-            setUserAvatar(null);
-            localStorage.removeItem('avatar');
-          }
-        })
-        .catch(() => {
-          setUserAvatar(null);
-          localStorage.removeItem('avatar');
-        });
-    }
   }, [token]);
 
   // Remove setTimeout or direct .focus() from handleOpenSettings
@@ -923,7 +899,6 @@ const Whiteboard: React.FC = () => {
     });
     setSettingsAvatar(userAvatar);
     setSettingsAvatarPreview(null);
-    setSettingsAvatarFile(null);
     setSettingsChanged(false);
     setSettingsError('');
     setSettingsSuccess('');
@@ -950,32 +925,42 @@ const Whiteboard: React.FC = () => {
     setSettingsError('');
     setSettingsSuccess('');
     try {
-      const formData = new FormData();
-      formData.append('username', settingsUsername);
-      if (settingsEmail) formData.append('email', settingsEmail);
-      if (settingsPassword) formData.append('password', settingsPassword);
-      if (settingsAvatarFile) formData.append('avatar', settingsAvatarFile);
-      // If avatar is null and no preview and no file, send a flag to remove avatar
-      if (!settingsAvatar && !settingsAvatarPreview && !settingsAvatarFile) formData.append('removeAvatar', 'true');
+      const updateData: any = {
+        username: settingsUsername
+      };
+      
+      if (settingsEmail) updateData.email = settingsEmail;
+      if (settingsPassword) updateData.password = settingsPassword;
+      
+      // Handle avatar update
+      if (settingsAvatarPreview) {
+        updateData.avatar = settingsAvatarPreview;
+      } else if (!settingsAvatar && !settingsAvatarPreview) {
+        updateData.removeAvatar = 'true';
+      }
+      
       const res = await api.patch(
-        `http://localhost:5001/api/users/${userId}`,
-        formData,
+        `/api/users/${userId}`,
+        updateData,
         {
           headers: {
-            Authorization: `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
           },
         }
       );
+      
       if (res.data) {
         setSettingsSuccess('Profile updated!');
         setSettingsOpen(false);
         setSettingsChanged(false);
         setSettingsAvatarPreview(null);
-        setSettingsAvatarFile(null);
         setSettingsUsername(res.data.username);
         setSettingsPassword('');
         setShowPasswordInput(false);
         localStorage.setItem('username', res.data.username);
+        
+        // Update avatar state
         if (res.data.avatar) {
           setUserAvatar(res.data.avatar);
           setSettingsAvatar(res.data.avatar);
@@ -997,31 +982,26 @@ const Whiteboard: React.FC = () => {
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        showNotification('Please select a valid image file', 'error');
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        showNotification('Image size must be less than 5MB', 'error');
+        return;
+      }
+      
       const reader = new FileReader();
-      reader.onloadend = async () => {
+      reader.onloadend = () => {
         const base64String = reader.result as string;
         setSettingsAvatarPreview(base64String);
-        setSettingsAvatarFile(null); // No file upload needed
+
         setSettingsAvatar(base64String);
         setUserAvatar(base64String);
         setSettingsChanged(true);
-        // Immediately update avatar in backend
-        if (userId && token) {
-          try {
-            const res = await api.patch(
-              `/api/users/${userId}`,
-              { avatar: base64String },
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-            if (res.data && res.data.avatar) {
-              setUserAvatar(res.data.avatar);
-              setSettingsAvatar(res.data.avatar);
-              localStorage.setItem('avatar', res.data.avatar);
-            }
-          } catch (err) {
-            showNotification('Failed to update avatar', 'error');
-          }
-        }
       };
       reader.readAsDataURL(file);
     }
@@ -1045,9 +1025,10 @@ const Whiteboard: React.FC = () => {
       settingsUsername !== username ||
       settingsEmail !== currentEmail ||
       !!settingsPassword ||
-      !!settingsAvatarFile;
+      !!settingsAvatarPreview ||
+      (settingsAvatarPreview === null && userAvatar !== null);
     setSettingsChanged(changed);
-  }, [settingsUsername, username, settingsEmail, currentEmail, settingsPassword, settingsAvatarFile]);
+  }, [settingsUsername, username, settingsEmail, currentEmail, settingsPassword, settingsAvatarPreview, userAvatar]);
 
   // Determine if the current user is the owner
   const isOwner = selectedBoard && selectedBoard.user === userId;
@@ -1059,7 +1040,7 @@ const Whiteboard: React.FC = () => {
   // Fetch the owner's username if not owner
   useEffect(() => {
     if (selectedBoard && selectedBoard.user && selectedBoard.user !== userId) {
-      api.get(`${import.meta.env.VITE_API_URL}/users/${selectedBoard.user}`)
+             api.get(`/api/users/${selectedBoard.user}`)
         .then(res => {
           setOwnerUsername(res.data.username);
           setOwnerUsernameError(false);
@@ -1099,9 +1080,7 @@ const Whiteboard: React.FC = () => {
     if (storedRole) {
       setUserRole(storedRole);
     } else if (token) {
-      api.get('http://localhost:5001/api/users/me', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+             api.get('/api/users/me')
         .then(res => {
           if (res.data && res.data.role) {
             setUserRole(res.data.role);
@@ -1114,30 +1093,24 @@ const Whiteboard: React.FC = () => {
     }
   }, [token]);
 
-  // Add a function to fetch user data
-  const fetchUserData = useCallback(async () => {
-    try {
-      const res = await api.get('/api/users/me');
-      if (res.data) {
-        if (res.data.plan) {
-          setUserPlan(res.data.plan);
-        }
-        // Update other user data as needed
-      }
-    } catch (err) {
-      console.error('Failed to fetch user data:', err);
-    }
-  }, []);
-
-  // Add effect to fetch user data periodically
+  // Fetch user data once on mount - no polling
   useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const res = await api.get('/api/users/me');
+        if (res.data) {
+          if (res.data.plan) {
+            setUserPlan(res.data.plan);
+          }
+          // Update other user data as needed
+        }
+      } catch (err) {
+        console.error('Failed to fetch user data:', err);
+      }
+    };
+    
     fetchUserData();
-    
-    // Poll for updates every 30 seconds
-    const interval = setInterval(fetchUserData, 30000);
-    
-    return () => clearInterval(interval);
-  }, [fetchUserData]);
+  }, []); // Empty dependency array - only run once on mount
 
   // Update your plan-dependent logic
   const isBasic = userPlan === 'Basic';
@@ -1173,11 +1146,8 @@ const Whiteboard: React.FC = () => {
       }
     };
 
-    // Fetch plan on mount and every 30 seconds
-    fetchUserPlan();
-    const interval = setInterval(fetchUserPlan, 30000);
-
-    return () => clearInterval(interval);
+         // Fetch plan once on mount only
+     fetchUserPlan();
   }, []);
 
   // Update your feature checks
@@ -1228,46 +1198,7 @@ const Whiteboard: React.FC = () => {
     }
   };
 
-  // Add a manual refresh button and notification if board has changed
-  const [boardChanged, setBoardChanged] = useState(false);
-
-  // Effect to check for board changes (no polling, just on demand)
-  useEffect(() => {
-    if (!selectedBoard) return;
-    setLastBoardHash(hashBoardContent(selectedBoard.content));
-    setShowRefresh(false);
-    setBoardChanged(false);
-  }, [selectedBoard]);
-
-  const checkForBoardUpdate = async () => {
-    if (!selectedBoard) return;
-    try {
-      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-      if (shareToken) headers['x-share-token'] = shareToken;
-      const res = await api.get(`/api/boards/${selectedBoard._id}`, { headers });
-      const newHash = hashBoardContent(res.data.content);
-      if (lastBoardHash && newHash !== lastBoardHash) {
-        setBoardChanged(true);
-        setShowRefresh(true);
-      } else {
-        setBoardChanged(false);
-        setShowRefresh(false);
-      }
-    } catch {}
-  };
-
-  const handleManualRefresh = async () => {
-    if (!selectedBoard) return;
-    try {
-      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-      if (shareToken) headers['x-share-token'] = shareToken;
-      const res = await api.get(`/api/boards/${selectedBoard._id}`, { headers });
-      loadBoardContent(res.data);
-      setLastBoardHash(hashBoardContent(res.data.content));
-      setShowRefresh(false);
-      setBoardChanged(false);
-    } catch {}
-  };
+  // Removed polling and manual refresh - no continuous loading needed
 
   return (
     <div className="min-h-screen w-full bg-gray-100 flex flex-col">
@@ -1281,11 +1212,14 @@ const Whiteboard: React.FC = () => {
             title="User Settings"
             style={{ minWidth: 40 }}
           >
-            {userAvatar ? (
-              <img src={getAvatarUrl(userAvatar)} alt="Avatar" className="w-10 h-10 rounded-full object-cover" />
-            ) : (
-              settingsUsername ? settingsUsername.charAt(0).toUpperCase() : '?' 
-            )}
+            {(() => {
+              const avatarDisplay = getAvatarDisplay(userAvatar, username);
+              if (avatarDisplay.type === 'base64') {
+                return <img src={avatarDisplay.content} alt="Avatar" className="w-10 h-10 rounded-full object-cover" />;
+              } else {
+                return avatarDisplay.content;
+              }
+            })()}
           </button>
           {userRole === 'admin' && (
             <button
@@ -1321,6 +1255,7 @@ const Whiteboard: React.FC = () => {
           >
             <FaShareAlt size={16} /> Share
           </button>
+          {/* Removed save button from header - using save button beside download button instead */}
           <button
             onClick={() => { localStorage.removeItem('token'); navigate('/login'); }}
             className="flex items-center gap-1 px-4 py-2 rounded-full glass-btn bg-white/10 text-gray-300 hover:text-white font-semibold shadow text-sm transition-colors"
@@ -1338,18 +1273,7 @@ const Whiteboard: React.FC = () => {
         </div>
       ) : selectedBoard ? (
         <>
-          {/* Save button for edit permission (shared link, not owner) */}
-          {(sharePermission === 'edit' && !isOwner) && (
-            <div className="w-full flex justify-end px-8 py-2">
-              <button
-                onClick={saveBoardContent}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded shadow transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                disabled={saving}
-              >
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          )}
+          {/* Removed duplicate save button - only sidebar save button remains */}
           {/* Board List and Create: only for owner, not for share links */}
           {isOwner && sharePermission !== 'view' && (
             <div className="w-full px-8 py-4">
@@ -1424,10 +1348,19 @@ const Whiteboard: React.FC = () => {
                 <div className="flex items-center gap-2 ml-4">
                   <button
                     onClick={saveBoardContent}
-                    className="flex items-center gap-1 px-4 py-1.5 rounded-full glass-btn bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold shadow text-sm transition-colors"
+                    disabled={saving || !selectedBoard}
+                    className="flex items-center gap-1 px-4 py-1.5 rounded-full glass-btn bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold shadow text-sm transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                     style={{ minWidth: 80 }}
+                    title="Save Board"
                   >
-                    <span className="font-bold">Save</span>
+                    {saving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <span className="font-bold">Save</span>
+                    )}
                   </button>
                   <button
                     onClick={isBasic ? () => openUpgradeModal('Download', 'Pro/Pro+') : () => handleDownloadBoard('png')}
@@ -1773,7 +1706,7 @@ const Whiteboard: React.FC = () => {
                   {selectedImageId && (() => {
                     const selectedImg = images.find(img => img.id === selectedImageId);
                     const isDefaultDecor = selectedImg && DEFAULT_DECORS.some(decor => decor.src === selectedImg.src);
-                    const isUserDecor = selectedImg && decors.some(decor => `http://localhost:5001${decor.imageUrl}` === selectedImg.src);
+                    const isUserDecor = selectedImg && decors.some(decor => `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${decor.imageUrl}` === selectedImg.src);
                     if (!selectedImg || isDefaultDecor || isUserDecor) return null;
                     return (
                       <div>
@@ -1837,10 +1770,10 @@ const Whiteboard: React.FC = () => {
                           <button
                             className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition"
                             title={decor.originalFilename}
-                            onClick={() => handleAddDecorToCanvas(`http://localhost:5001${decor.imageUrl}`)}
+                            onClick={() => handleAddDecorToCanvas(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${decor.imageUrl}`)}
                             style={{ padding: 2 }}
                           >
-                            <img src={`http://localhost:5001${decor.imageUrl}`} alt={decor.originalFilename} className="max-w-full max-h-full object-contain" />
+                                                         <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${decor.imageUrl}`} alt={decor.originalFilename} className="max-w-full max-h-full object-contain" />
                           </button>
                           {sharePermission !== 'view' && (
                             <button
@@ -1900,6 +1833,8 @@ const Whiteboard: React.FC = () => {
                       onUpgradeClick={() => openUpgradeModal(isBasic ? 'Frames' : 'More Frames', isBasic ? 'Pro/Pro+' : 'Pro+')}
                     />
                   </div>
+                  
+                  {/* Removed footer save button - header save button is used instead */}
                 </aside>
               )}
             </div>
@@ -1933,7 +1868,6 @@ const Whiteboard: React.FC = () => {
           setShowPasswordInput={setShowPasswordInput}
           plan={userPlan}
           setSettingsAvatar={setSettingsAvatar}
-          setSettingsAvatarFile={setSettingsAvatarFile}
           setUserAvatar={setUserAvatar}
         />
       )}
@@ -1948,11 +1882,7 @@ const Whiteboard: React.FC = () => {
       )}
       {/* Upgrade Modal */}
       <UpgradeModal open={upgradeModalOpen} onClose={() => setUpgradeModalOpen(false)} feature={upgradeFeature} requiredPlan={upgradeRequiredPlan} />
-      {showRefresh && (
-        <div className="fixed top-20 right-8 z-50 bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-2 rounded shadow">
-          Board has changed. <button onClick={handleManualRefresh} className="underline text-blue-600">Refresh</button>
-        </div>
-      )}
+             {/* Removed polling notification - users can refresh manually when needed */}
     </div>
   );
 };

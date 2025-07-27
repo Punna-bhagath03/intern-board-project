@@ -11,31 +11,47 @@ const JoinBoard: React.FC = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const token = params.get('token');
-    const jwt = localStorage.getItem('token');
+    
     if (!token) {
       setError('No token provided.');
       setLoading(false);
       return;
     }
+
+    const jwt = localStorage.getItem('token');
+    
     if (!jwt) {
       // Not logged in, store intended path and redirect to login
-      localStorage.setItem('auth-redirect', location.pathname + location.search);
+      const currentPath = location.pathname + location.search;
+      localStorage.setItem('auth-redirect', currentPath);
+      console.log('User not logged in, redirecting to login with path:', currentPath);
       navigate('/login');
       return;
     }
-    // If logged in, call /api/share/:token, get boardId, and navigate to /board/:id?shareToken=...
-    api.get(`/share/${token}`)
-      .then(res => {
+
+    // If logged in, verify the share token and navigate to board
+    const verifyShareToken = async () => {
+      try {
+        console.log('Verifying share token:', token);
+        const res = await api.get(`/api/share/${token}`);
         const { boardId, permission } = res.data;
         console.log('JoinBoard: shareToken', token, 'boardId', boardId, 'permission', permission);
+        
+        // Clear any stored redirect since we're successfully joining
         localStorage.removeItem('auth-redirect');
+        
+        // Navigate to the board with share token
         navigate(`/board/${boardId}?shareToken=${token}&permission=${permission}`);
-      })
-      .catch(err => {
-        setError(err.response?.data?.message || 'Link expired or invalid.');
+      } catch (err: any) {
+        console.error('Share link verification failed:', err);
+        const errorMessage = err.response?.data?.message || 'Link expired or invalid.';
+        setError(errorMessage);
         setLoading(false);
-      });
-  }, [location.search, navigate]);
+      }
+    };
+
+    verifyShareToken();
+  }, [location.search, navigate, location.pathname]);
 
   if (loading) {
     return (

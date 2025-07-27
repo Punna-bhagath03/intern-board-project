@@ -85,8 +85,29 @@ const UserBoards: React.FC = () => {
     }
   };
 
-  const getAvatarUrl = (avatar: string) => {
-    return `/uploads/avatars/${avatar}`;
+  // Helper to handle avatar display - shows default profile photo or base64 data
+  const getAvatarDisplay = (avatar: string | null | undefined, username: string): { type: 'default' | 'base64', content: string } => {
+    if (!avatar || avatar === '') {
+      // Return default profile photo with initial letter
+      return {
+        type: 'default',
+        content: username ? username.charAt(0).toUpperCase() : '?'
+      };
+    }
+    
+    // Check if it's base64 data
+    if (avatar.startsWith('data:image/')) {
+      return {
+        type: 'base64',
+        content: avatar
+      };
+    }
+    
+    // Fallback to default if it's an old file path
+    return {
+      type: 'default',
+      content: username ? username.charAt(0).toUpperCase() : '?'
+    };
   };
 
   return (
@@ -133,13 +154,14 @@ const UserBoards: React.FC = () => {
                     } transition-all duration-200`}
                   >
                     <div className="w-8 h-8 rounded-full bg-gray-700/50 flex items-center justify-center overflow-hidden">
-                      {user.avatar ? (
-                        <img src={getAvatarUrl(user.avatar)} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="text-gray-400">
-                          <FaUser />
-                        </div>
-                      )}
+                      {(() => {
+                        const avatarDisplay = getAvatarDisplay(user.avatar, user.username);
+                        if (avatarDisplay.type === 'base64') {
+                          return <img src={avatarDisplay.content} alt="" className="w-full h-full object-cover" />;
+                        } else {
+                          return <div className="text-gray-400 text-sm font-bold">{avatarDisplay.content}</div>;
+                        }
+                      })()}
                     </div>
                     <span className="font-medium">{user.username}</span>
                   </button>

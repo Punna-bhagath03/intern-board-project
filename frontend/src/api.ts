@@ -1,8 +1,9 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
-  withCredentials: true
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5001',
+  withCredentials: true,
+  timeout: 30000, // Increased to 30 seconds for better reliability
 });
 
 // Add a function to refresh the token
@@ -39,8 +40,13 @@ api.interceptors.response.use(
     }
     return response;
   },
-  (error) => {
-    if (error.response?.status === 401) {
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // Handle 401 errors (unauthorized)
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
       // Clear invalid token and related data
       localStorage.removeItem('token');
       localStorage.removeItem('username');
@@ -60,6 +66,18 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+    
+    // Handle 404 errors for user endpoints
+    if (error.response?.status === 404 && originalRequest.url?.includes('/api/users/')) {
+      console.warn('User not found, clearing user data');
+      // Don't redirect for user lookup failures, just log them
+    }
+    
+    // Handle network errors
+    if (!error.response && error.code === 'ECONNABORTED') {
+      console.error('Request timeout');
+    }
+    
     return Promise.reject(error);
   }
 );
