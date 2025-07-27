@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../api';
 import FramesSection from '../components/FramesSection';
@@ -10,7 +10,7 @@ interface Board {
   user: string;
 }
 
-// const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api`;
+const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api`;
 
 const AdminBoardView: React.FC = () => {
   const { boardId } = useParams<{ boardId: string }>();
@@ -18,7 +18,7 @@ const AdminBoardView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // const [content, setContent] = useState<any>({});
+  const [content, setContent] = useState<any>({});
 
   // For canvas/frames, etc. (reuse as needed)
   const [boardSize, setBoardSize] = useState<{ width: string; height: string }>({ width: '600', height: '400' });
@@ -35,7 +35,7 @@ const AdminBoardView: React.FC = () => {
         const token = localStorage.getItem('token');
         const res = await api.get(`/api/boards/${boardId}`);
         setBoard(res.data);
-        // setContent(res.data.content || {});
+        setContent(res.data.content || {});
         setBoardSize({
           width: res.data.content?.width ? res.data.content.width.toString() : '600',
           height: res.data.content?.height ? res.data.content.height.toString() : '400',
@@ -65,7 +65,7 @@ const AdminBoardView: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       await api.put(`/api/boards/${board._id}`, { content: newContent });
-              // setContent(newContent);
+      setContent(newContent);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to save board');
     }

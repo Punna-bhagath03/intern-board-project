@@ -141,7 +141,7 @@ const UsersBoardsPanel: React.FC = () => {
                 aria-label={`Show boards for ${user.username}`}
               >
                 <span className="flex items-center gap-2">
-                  <FaUser />
+                  <FaUser className="text-blue-400" />
                   {user.username}
                   {isUserActive(user) ? (
                     <span className="inline-flex items-center gap-1 px-2 py-1 ml-2 rounded bg-green-900 text-green-300 text-xs font-bold">
@@ -153,7 +153,7 @@ const UsersBoardsPanel: React.FC = () => {
                     </span>
                   )}
                 </span>
-                <FaArrowRight />
+                <FaArrowRight className="text-lg" />
               </button>
             ))}
           </div>
@@ -196,7 +196,7 @@ const UsersBoardsPanel: React.FC = () => {
                               className="inline-flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full p-2 focus:outline-none focus:ring-2 focus:ring-red-400 transition"
                               aria-label={`Delete board ${board.name}`}
                             >
-                              <FaTrash />
+                              <FaTrash className="text-lg" />
                             </button>
                           </td>
                         </tr>
