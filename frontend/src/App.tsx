@@ -19,6 +19,7 @@ import BoardRedirector from './components/BoardRedirector';
 import Pricing from './pages/Pricing';
 import AdminSendMail from './pages/AdminSendMail';
 import ContentModeration from './pages/ContentModeration';
+import SPARouter from './components/SPARouter';
 
 function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) {
   const token = localStorage.getItem('token');
@@ -88,6 +89,16 @@ function LandingOrRedirect() {
   const token = localStorage.getItem('token');
   const defaultBoardId = localStorage.getItem('defaultBoardId');
   const location = useLocation();
+  
+  // Handle stored URL from SPA fallback
+  useEffect(() => {
+    const storedUrl = sessionStorage.getItem('originalUrl');
+    if (storedUrl) {
+      sessionStorage.removeItem('originalUrl');
+      window.history.replaceState(null, '', storedUrl);
+    }
+  }, []);
+  
   // If already on an admin route, don't redirect
   if (location.pathname.startsWith('/admin')) {
     return null; // Let the admin route render
@@ -101,6 +112,7 @@ function LandingOrRedirect() {
 function App() {
   return (
     <Router>
+      <SPARouter />
       <Routes>
         <Route path="/" element={<LandingOrRedirect />} />
         <Route path="/signup" element={<Signup />} />
