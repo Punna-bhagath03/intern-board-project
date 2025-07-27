@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema({
     required: true,
   },
   avatar: {
-    type: String, // URL or path to avatar image
+    type: String, // Base64 encoded image data or empty string for default
     default: '',
   },
   email: {
