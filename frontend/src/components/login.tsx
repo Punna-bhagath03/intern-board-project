@@ -25,15 +25,23 @@ export default function Login() {
             // Token is valid, handle redirect
             const authRedirect = localStorage.getItem('auth-redirect');
             if (authRedirect) {
+              console.log('Redirecting to stored path:', authRedirect);
+              localStorage.removeItem('auth-redirect');
               navigate(authRedirect);
             } else {
               navigate('/board');
             }
           }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.warn('Invalid token, clearing storage:', err);
           // Token is invalid, clear it
           localStorage.removeItem('token');
+          localStorage.removeItem('username');
+          localStorage.removeItem('role');
+          localStorage.removeItem('avatar');
+          localStorage.removeItem('defaultBoardId');
+          localStorage.removeItem('userPlan');
           refreshAuthToken();
         });
     }
@@ -122,8 +130,9 @@ export default function Login() {
         }
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
-      showNotification(err.response?.data?.message || 'Login failed', 'error');
+      const errorMessage = err.response?.data?.message || 'Login failed';
+      setError(errorMessage);
+      showNotification(errorMessage, 'error');
     } finally {
       setLoading(false);
     }
