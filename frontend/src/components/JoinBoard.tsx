@@ -48,11 +48,9 @@ const JoinBoard: React.FC = () => {
         
         // Navigate to the board with share token
         navigate(`/board/${boardId}?shareToken=${token}&permission=${permission}`);
-      } catch (err: any) {
-        console.error('Share link verification failed:', err);
-        const errorMessage = err.response?.data?.message || 'Link expired or invalid.';
-        setError(errorMessage);
-        setLoading(false);
+      } catch (error: unknown) {
+        console.error('Failed to join board:', error);
+        setError('Failed to join board. Please try again.');
       }
     };
 
