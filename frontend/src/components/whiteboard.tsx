@@ -57,7 +57,7 @@ interface ImageItem {
 interface Board {
   _id: string;
   name: string;
-  content: any;
+  content: Record<string, unknown>;
   user: string; // Add this line to fix linter errors for board.user
 }
 
@@ -349,7 +349,7 @@ const Whiteboard: React.FC = () => {
   // Refs
   const addImagesInputRef = useRef<HTMLInputElement | null>(null);
   const backgroundInputRef = useRef<HTMLInputElement | null>(null);
-  const boardRef = useRef<HTMLDivElement | null>(null);
+  const boardRef = useRef<HTMLElement | null>(null);
   const decorInputRef = useRef<HTMLInputElement | null>(null);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
   const hasFocusedRef = useRef(false);
@@ -524,7 +524,7 @@ const Whiteboard: React.FC = () => {
     loadBoard();
   }, [id, userId, shareToken]); // Removed navigate and showNotification from dependencies
 
-  const setBoardRef = (node: any) => {
+  const setBoardRef = (node: Rnd | null) => {
     if (node && node.resizableElement) {
       boardRef.current = node.resizableElement.current;
     }
@@ -555,12 +555,12 @@ const Whiteboard: React.FC = () => {
     setSelectedBoard(board);
     const content = board.content || {};
     setBoardSize({
-      width: content.width ? content.width.toString() : '600',
-      height: content.height ? content.height.toString() : '400',
+      width: (content.width as number) ? (content.width as number).toString() : '600',
+      height: (content.height as number) ? (content.height as number).toString() : '400',
     });
-    setBackgroundImage(content.backgroundImage || null);
-    setImages(content.elements || []);
-    setCanvasFrames(content.frames || []); // restore frames
+    setBackgroundImage((content.backgroundImage as string) || null);
+    setImages((content.elements as ImageItem[]) || []);
+    setCanvasFrames((content.frames as CanvasFrame[]) || []); // restore frames
     setSelectedImageId(null);
           // Board loaded successfully
   };
@@ -582,9 +582,9 @@ const Whiteboard: React.FC = () => {
         showNotification('Board saved successfully!', 'success');
         setSaving(false);
       }
-    } catch (err: any) {
-      console.error('Failed to save board:', err);
-      const errorMessage = err.response?.data?.message || 'Failed to save board';
+    } catch (error: unknown) {
+      console.error('Failed to save board:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save board';
       showNotification(errorMessage, 'error');
       setSaving(false);
     }

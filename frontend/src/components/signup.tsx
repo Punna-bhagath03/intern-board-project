@@ -26,12 +26,9 @@ export default function Signup() {
         // api instance handles token automatically
         navigate(`/board/${res.data.defaultBoardId}`);
       }
-    } catch (err: any) {
-      if (err.response && err.response.data?.message) {
-        setError(err.response.data.message);
-      } else {
-        setError('Registration failed. Please try again.');
-      }
+    } catch (error: unknown) {
+      console.error('Registration error:', error);
+      setError('Registration failed. Please try again.');
     }
   };
 
