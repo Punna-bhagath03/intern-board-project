@@ -92,7 +92,7 @@ export const getCurrentUser = async () => {
   try {
     const res = await api.get('/api/users/me');
     return res.data;
-  } catch (err) {
+  } catch {
     return null;
   }
 };

@@ -76,8 +76,8 @@ const ShareModal: React.FC<ShareModalProps> = ({ boardId, open, onClose, userPla
       } else {
         setError('Failed to generate share link');
       }
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to generate link');
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'Failed to generate link');
     }
     setLoading(false);
   };
@@ -88,7 +88,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ boardId, open, onClose, userPla
         await navigator.clipboard.writeText(shareLink);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
-      } catch (err) {
+      } catch (error: unknown) {
         setError('Failed to copy link to clipboard');
       }
     }

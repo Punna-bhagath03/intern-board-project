@@ -16,7 +16,7 @@ const BoardRedirector: React.FC = () => {
             await api.get(`/api/boards/${defaultBoardId}`);
             navigate(`/board/${defaultBoardId}`);
             return;
-          } catch (err) {
+          } catch {
             // Board not found or not accessible, remove from localStorage
             localStorage.removeItem('defaultBoardId');
             // Continue to fetch user's boards

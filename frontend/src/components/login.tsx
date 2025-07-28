@@ -130,10 +130,9 @@ export default function Login() {
           navigate('/board');
         }
       }
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Login failed';
-      setError(errorMessage);
-      showNotification(errorMessage, 'error');
+    } catch (error: unknown) {
+      console.error('Login error:', error);
+      setError('Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
