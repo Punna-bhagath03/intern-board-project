@@ -1154,7 +1154,7 @@ const Whiteboard: React.FC = () => {
             <span className="text-xs text-gray-500">PNG/WebP/JPEG only, max 5MB</span>
           </div>
           <FramesSection onAddFrame={handleAddFrameToBoard} />
-        </aside>
+f        </aside>
       </main>
     </div>
   );

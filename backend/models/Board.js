@@ -16,7 +16,7 @@ const BoardSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Board', BoardSchema);
+module.exports = mongoose.model('Board', BoardSchema); 
 
 // Archive schema for board resets
 const BoardArchiveSchema = new mongoose.Schema({

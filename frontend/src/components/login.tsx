@@ -25,8 +25,8 @@ export default function Login() {
         // Fetch user's latest board
         try {
           const latestRes = await axios.get('http://localhost:5001/api/boards/latest', {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+          headers: { Authorization: `Bearer ${token}` },
+        });
           const latestBoard = latestRes.data;
           localStorage.setItem('defaultBoardId', latestBoard._id);
           navigate(`/board/${latestBoard._id}`);
