@@ -63,18 +63,30 @@ npm install
 
 #### 3. Configure Environment
 
-- **Backend**:  
-  Create a `.env` file in `backend/` with the following (adjust as needed):
+1. Run the environment setup script:
+   ```bash
+   # Configure environment variables
+   cd backend/scripts
+   ./configure-local.sh
+   ```
 
-  ```
-  PORT=5001
-  MONGODB_URI=mongodb://localhost:27017/canvas-board
-  JWT_SECRET=your_jwt_secret
-  UPLOADS_DIR=../uploads
-  ```
+   This will:
+   - Generate secure credentials
+   - Set up AWS S3 configuration
+   - Configure MongoDB connection
+   - Set up email settings
+   - Store credentials securely
 
-- **Frontend**:  
-  No special config needed for local dev.
+2. Configure AWS S3 buckets (first time setup):
+   ```bash
+   cd backend/scripts
+   # Create and configure buckets
+   ./configure-s3-buckets.sh
+   # Set up CORS policies
+   ./configure-s3-cors.sh
+   ```
+
+For production deployment, see our [Deployment Guide](./DEPLOYMENT_GUIDE.md).
 
 #### 4. Start the Application
 

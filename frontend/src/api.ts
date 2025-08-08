@@ -1,9 +1,12 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5001',
+  baseURL: 'http://13.53.216.215',
   withCredentials: true,
   timeout: 30000, // Increased to 30 seconds for better reliability
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
 // Add a function to refresh the token
@@ -20,16 +23,19 @@ export const refreshAuthToken = () => {
 refreshAuthToken();
 
 // Attach token if present
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers['Authorization'] = `Bearer ${token}`;
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  return config;
-}, (error) => {
-  return Promise.reject(error);
-});
+);
 
 // Global response interceptor for session invalidation and plan updates
 api.interceptors.response.use(
@@ -42,11 +48,11 @@ api.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
-    
+
     // Handle 401 errors (unauthorized)
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      
+
       // Clear invalid token and related data
       localStorage.removeItem('token');
       localStorage.removeItem('username');
@@ -54,7 +60,7 @@ api.interceptors.response.use(
       localStorage.removeItem('avatar');
       localStorage.removeItem('defaultBoardId');
       localStorage.removeItem('userPlan');
-      
+
       // Clear auth headers
       delete api.defaults.headers.common['Authorization'];
 
@@ -66,18 +72,21 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
-    
+
     // Handle 404 errors for user endpoints
-    if (error.response?.status === 404 && originalRequest.url?.includes('/api/users/')) {
+    if (
+      error.response?.status === 404 &&
+      originalRequest.url?.includes('/api/users/')
+    ) {
       console.warn('User not found, clearing user data');
       // Don't redirect for user lookup failures, just log them
     }
-    
+
     // Handle network errors
     if (!error.response && error.code === 'ECONNABORTED') {
       console.error('Request timeout');
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -97,4 +106,4 @@ export const getCurrentUser = async () => {
   }
 };
 
-export default api; 
+export default api;

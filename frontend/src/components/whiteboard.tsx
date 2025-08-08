@@ -13,34 +13,42 @@ import deep1 from '../assets/deep1.png';
 import deep2 from '../assets/deep2.png';
 import FramesSection from './FramesSection';
 import ShareModal from './ShareModal';
-import { FaSignOutAlt, FaShareAlt, FaArrowUp, FaTachometerAlt, FaEdit, FaTrash } from 'react-icons/fa';
+import {
+  FaSignOutAlt,
+  FaShareAlt,
+  FaArrowUp,
+  FaTachometerAlt,
+  FaEdit,
+  FaTrash,
+} from 'react-icons/fa';
 import { useNotification } from '../NotificationContext';
 import { getCurrentUser } from '../api';
 
-
-
 // Helper to handle avatar display - shows default profile photo or base64 data
-const getAvatarDisplay = (avatar: string | null | undefined, username: string): { type: 'default' | 'base64', content: string } => {
+const getAvatarDisplay = (
+  avatar: string | null | undefined,
+  username: string
+): { type: 'default' | 'base64'; content: string } => {
   if (!avatar || avatar === '') {
     // Return default profile photo with initial letter
     return {
       type: 'default',
-      content: username ? username.charAt(0).toUpperCase() : '?'
+      content: username ? username.charAt(0).toUpperCase() : '?',
     };
   }
-  
+
   // Check if it's base64 data
   if (avatar.startsWith('data:image/')) {
     return {
       type: 'base64',
-      content: avatar
+      content: avatar,
     };
   }
-  
+
   // Fallback to default if it's an old file path
   return {
     type: 'default',
-    content: username ? username.charAt(0).toUpperCase() : '?'
+    content: username ? username.charAt(0).toUpperCase() : '?',
   };
 };
 
@@ -61,9 +69,7 @@ interface Board {
   user: string; // Add this line to fix linter errors for board.user
 }
 
-
-
-// Add default decors 
+// Add default decors
 const DEFAULT_DECORS = [
   { src: garland1, name: 'Flower Garland 1' },
   { src: marigoldGarland, name: 'Marigold Garland' },
@@ -91,8 +97,8 @@ interface SettingsModalProps {
   settingsOpen: boolean;
   settingsUsername: string;
   setSettingsUsername: (v: string) => void;
-  settingsEmail: string;  // Add this
-  setSettingsEmail: (v: string) => void;  // Add this
+  settingsEmail: string; // Add this
+  setSettingsEmail: (v: string) => void; // Add this
   settingsPassword: string;
   setSettingsPassword: (v: string) => void;
   settingsAvatarPreview: string | null;
@@ -119,8 +125,8 @@ function SettingsModal({
   settingsOpen,
   settingsUsername,
   setSettingsUsername,
-  settingsEmail,  // Add this
-  setSettingsEmail,  // Add this
+  settingsEmail, // Add this
+  setSettingsEmail, // Add this
   settingsPassword,
   setSettingsPassword,
   settingsAvatarPreview,
@@ -154,34 +160,57 @@ function SettingsModal({
   }, [settingsOpen, passwordInputRef]);
   if (!settingsOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 transition-opacity duration-200 opacity-100 pointer-events-auto"
-      aria-modal="true" role="dialog">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 relative transform transition-all duration-300 scale-100 opacity-100"
-        style={{ minHeight: 400 }}>
-        <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold" onClick={onClose} aria-label="Close">&times;</button>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 transition-opacity duration-200 opacity-100 pointer-events-auto"
+      aria-modal="true"
+      role="dialog"
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 relative transform transition-all duration-300 scale-100 opacity-100"
+        style={{ minHeight: 400 }}
+      >
+        <button
+          className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          &times;
+        </button>
         <h2 className="text-2xl font-bold mb-4 text-center flex items-center justify-center gap-3">
           User Settings
           <span
             className={
-              plan === 'Pro+' ? 'inline-block px-3 py-1 rounded-full bg-blue-600 text-white text-sm font-semibold' :
-              plan === 'Pro' ? 'inline-block px-3 py-1 rounded-full bg-purple-600 text-white text-sm font-semibold' :
-              'inline-block px-3 py-1 rounded-full bg-gray-400 text-white text-sm font-semibold'
+              plan === 'Pro+'
+                ? 'inline-block px-3 py-1 rounded-full bg-blue-600 text-white text-sm font-semibold'
+                : plan === 'Pro'
+                ? 'inline-block px-3 py-1 rounded-full bg-purple-600 text-white text-sm font-semibold'
+                : 'inline-block px-3 py-1 rounded-full bg-gray-400 text-white text-sm font-semibold'
             }
           >
             {plan}
           </span>
         </h2>
-        <form onSubmit={handleSaveSettings} className="space-y-4" autoComplete="off">
+        <form
+          onSubmit={handleSaveSettings}
+          className="space-y-4"
+          autoComplete="off"
+        >
           <div>
             <label className="block text-sm font-semibold mb-1">Username</label>
-            <input type="text" value={settingsUsername} onChange={e => setSettingsUsername(e.target.value)} className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400" required />
+            <input
+              type="text"
+              value={settingsUsername}
+              onChange={(e) => setSettingsUsername(e.target.value)}
+              className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400"
+              required
+            />
           </div>
           <div>
             <label className="block text-sm font-semibold mb-1">Email</label>
-            <input 
-              type="email" 
-              value={settingsEmail} 
-              onChange={e => setSettingsEmail(e.target.value)}
+            <input
+              type="email"
+              value={settingsEmail}
+              onChange={(e) => setSettingsEmail(e.target.value)}
               className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400"
               placeholder="Add your email to receive notifications"
             />
@@ -189,9 +218,14 @@ function SettingsModal({
           <div>
             <label className="block text-sm font-semibold mb-1">Avatar</label>
             <div className="flex items-center gap-4">
-              {(settingsAvatarPreview || (userAvatar && userAvatar.startsWith('data:image/'))) ? (
+              {settingsAvatarPreview ||
+              (userAvatar && userAvatar.startsWith('data:image/')) ? (
                 <div className="relative">
-                  <img src={settingsAvatarPreview || userAvatar || ''} alt="Avatar" className="w-16 h-16 rounded-full border object-cover" />
+                  <img
+                    src={settingsAvatarPreview || userAvatar || ''}
+                    alt="Avatar"
+                    className="w-16 h-16 rounded-full border object-cover"
+                  />
                   <button
                     type="button"
                     className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center shadow border-2 border-white"
@@ -208,10 +242,17 @@ function SettingsModal({
                 </div>
               ) : (
                 <div className="w-16 h-16 rounded-full border bg-gray-200 flex items-center justify-center text-2xl font-bold text-blue-400">
-                  {settingsUsername ? settingsUsername.charAt(0).toUpperCase() : '?'}
+                  {settingsUsername
+                    ? settingsUsername.charAt(0).toUpperCase()
+                    : '?'}
                 </div>
               )}
-              <input type="file" accept="image/*" onChange={handleAvatarChange} className="block text-sm" />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="block text-sm"
+              />
             </div>
           </div>
           {!showPasswordInput && (
@@ -225,23 +266,41 @@ function SettingsModal({
           )}
           {showPasswordInput && (
             <div>
-              <label className="block text-sm font-semibold mb-1">New Password</label>
+              <label className="block text-sm font-semibold mb-1">
+                New Password
+              </label>
               <input
                 type="password"
                 ref={passwordInputRef}
                 value={settingsPassword}
-                onChange={e => setSettingsPassword(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
+                onChange={(e) => setSettingsPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.preventDefault();
+                }}
                 className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400"
                 placeholder="Enter new password to update"
                 autoComplete="new-password"
               />
             </div>
           )}
-          {settingsError && <div className="text-red-500 text-sm">{settingsError}</div>}
-          {settingsSuccess && <div className="text-green-600 text-sm">{settingsSuccess}</div>}
-          <button type="submit" className={`w-full py-2 rounded-lg font-bold text-white transition ${settingsChanged ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'}`} disabled={!settingsChanged || settingsLoading}>
-            {settingsLoading ? <span className="inline-block w-5 h-5 border-2 border-white border-t-blue-500 rounded-full animate-spin align-middle mr-2" /> : null}
+          {settingsError && (
+            <div className="text-red-500 text-sm">{settingsError}</div>
+          )}
+          {settingsSuccess && (
+            <div className="text-green-600 text-sm">{settingsSuccess}</div>
+          )}
+          <button
+            type="submit"
+            className={`w-full py-2 rounded-lg font-bold text-white transition ${
+              settingsChanged
+                ? 'bg-blue-600 hover:bg-blue-700'
+                : 'bg-gray-400 cursor-not-allowed'
+            }`}
+            disabled={!settingsChanged || settingsLoading}
+          >
+            {settingsLoading ? (
+              <span className="inline-block w-5 h-5 border-2 border-white border-t-blue-500 rounded-full animate-spin align-middle mr-2" />
+            ) : null}
             {settingsLoading ? 'Saving...' : 'Save'}
           </button>
         </form>
@@ -251,7 +310,12 @@ function SettingsModal({
 }
 
 // UpgradeModal: reusable modal for upgrade prompts
-const UpgradeModal: React.FC<{ open: boolean; onClose: () => void; feature: string; requiredPlan?: string }> = ({ open, onClose, feature, requiredPlan }) => {
+const UpgradeModal: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  feature: string;
+  requiredPlan?: string;
+}> = ({ open, onClose, feature, requiredPlan }) => {
   const navigate = useNavigate();
   if (!open) return null;
   return (
@@ -266,14 +330,37 @@ const UpgradeModal: React.FC<{ open: boolean; onClose: () => void; feature: stri
         </button>
         <div className="flex flex-col items-center text-center">
           <div className="mb-4">
-            <svg width="48" height="48" fill="none" viewBox="0 0 48 48"><circle cx="24" cy="24" r="24" fill="#2563eb"/><path d="M24 14v12" stroke="#fff" strokeWidth="3" strokeLinecap="round"/><circle cx="24" cy="32" r="2" fill="#fff"/></svg>
+            <svg width="48" height="48" fill="none" viewBox="0 0 48 48">
+              <circle cx="24" cy="24" r="24" fill="#2563eb" />
+              <path
+                d="M24 14v12"
+                stroke="#fff"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
+              <circle cx="24" cy="32" r="2" fill="#fff" />
+            </svg>
           </div>
-          <h2 className="text-2xl font-bold mb-2 text-blue-700">Upgrade Required</h2>
-          <p className="text-gray-700 mb-4 text-lg font-medium">The <span className="font-bold text-blue-600">{feature}</span> feature is available for <span className="font-bold text-blue-600">{requiredPlan || 'Pro/Pro+'}</span> users only.</p>
-          <p className="text-gray-500 mb-6">Upgrade your plan to unlock this and more premium features!</p>
+          <h2 className="text-2xl font-bold mb-2 text-blue-700">
+            Upgrade Required
+          </h2>
+          <p className="text-gray-700 mb-4 text-lg font-medium">
+            The <span className="font-bold text-blue-600">{feature}</span>{' '}
+            feature is available for{' '}
+            <span className="font-bold text-blue-600">
+              {requiredPlan || 'Pro/Pro+'}
+            </span>{' '}
+            users only.
+          </p>
+          <p className="text-gray-500 mb-6">
+            Upgrade your plan to unlock this and more premium features!
+          </p>
           <button
             className="bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-500 text-white font-bold px-6 py-3 rounded-full shadow-lg text-lg transition-all"
-            onClick={() => { onClose(); navigate('/pricing'); }}
+            onClick={() => {
+              onClose();
+              navigate('/pricing');
+            }}
           >
             View Plans & Upgrade
           </button>
@@ -307,7 +394,9 @@ const Whiteboard: React.FC = () => {
   const [userPlan, setUserPlan] = useState<string>('Basic');
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
-  const [username, setUsername] = useState(localStorage.getItem('username') || '');
+  const [username, setUsername] = useState(
+    localStorage.getItem('username') || ''
+  );
 
   // Settings state
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -318,17 +407,21 @@ const Whiteboard: React.FC = () => {
   const [settingsPassword, setSettingsPassword] = useState('');
   const [settingsAvatar, setSettingsAvatar] = useState<string | null>(null);
 
-  const [settingsAvatarPreview, setSettingsAvatarPreview] = useState<string | null>(null);
+  const [settingsAvatarPreview, setSettingsAvatarPreview] = useState<
+    string | null
+  >(null);
   const [settingsChanged, setSettingsChanged] = useState(false);
   const [settingsEmail, setSettingsEmail] = useState('');
   const [currentEmail, setCurrentEmail] = useState('');
   const [showPasswordInput, setShowPasswordInput] = useState(false);
 
   // Board state
-  const [boardSize, setBoardSize] = useState<{ width: string; height: string }>({
-    width: '600',
-    height: '400',
-  });
+  const [boardSize, setBoardSize] = useState<{ width: string; height: string }>(
+    {
+      width: '600',
+      height: '400',
+    }
+  );
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [images, setImages] = useState<ImageItem[]>([]);
   const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
@@ -341,10 +434,9 @@ const Whiteboard: React.FC = () => {
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState('');
   const [upgradeRequiredPlan, setUpgradeRequiredPlan] = useState('');
-  
+
   // Board loading state to prevent conflicts
   // Removed unused boardLoaded state
-
 
   // Refs
   const addImagesInputRef = useRef<HTMLInputElement | null>(null);
@@ -371,9 +463,17 @@ const Whiteboard: React.FC = () => {
     }
     setEditSaving(true);
     try {
-      const res = await api.put(`/api/boards/${board._id}`, { name: editBoardName }, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await api.put(
+        `/api/boards/${board._id}`,
+        { name: editBoardName },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       if (res.data) {
-        setBoards(prev => prev.map(b => b._id === board._id ? { ...b, name: res.data.name } : b));
+        setBoards((prev) =>
+          prev.map((b) =>
+            b._id === board._id ? { ...b, name: res.data.name } : b
+          )
+        );
         if (selectedBoard && selectedBoard._id === board._id) {
           setSelectedBoard({ ...selectedBoard, name: res.data.name });
         }
@@ -385,7 +485,10 @@ const Whiteboard: React.FC = () => {
       setEditSaving(false);
     }
   };
-  const handleEditInputKey = (e: React.KeyboardEvent<HTMLInputElement>, board: Board) => {
+  const handleEditInputKey = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    board: Board
+  ) => {
     if (e.key === 'Enter') {
       saveBoardName(board);
     } else if (e.key === 'Escape') {
@@ -417,7 +520,7 @@ const Whiteboard: React.FC = () => {
       if (decorToDelete) {
         setImages((prev) =>
           prev.filter(
-                         (img) => img.src !== `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${decorToDelete.imageUrl}`
+            (img) => img.src !== decorToDelete.imageUrl // S3 URLs are now stored directly
           )
         );
       }
@@ -444,9 +547,7 @@ const Whiteboard: React.FC = () => {
     reader.onload = (e) => {
       const dataUrl = e.target?.result as string;
       setCanvasFrames((prev) =>
-        prev.map((f) =>
-          f.id === frameId ? { ...f, imageSrc: dataUrl } : f
-        )
+        prev.map((f) => (f.id === frameId ? { ...f, imageSrc: dataUrl } : f))
       );
     };
     reader.readAsDataURL(file);
@@ -537,7 +638,8 @@ const Whiteboard: React.FC = () => {
       return;
     }
     setLoadingBoards(true);
-    api.get('/api/boards')
+    api
+      .get('/api/boards')
       .then((res) => {
         setBoards(res.data);
         setLoadingBoards(false);
@@ -555,14 +657,18 @@ const Whiteboard: React.FC = () => {
     setSelectedBoard(board);
     const content = board.content || {};
     setBoardSize({
-      width: (content.width as number) ? (content.width as number).toString() : '600',
-      height: (content.height as number) ? (content.height as number).toString() : '400',
+      width: (content.width as number)
+        ? (content.width as number).toString()
+        : '600',
+      height: (content.height as number)
+        ? (content.height as number).toString()
+        : '400',
     });
     setBackgroundImage((content.backgroundImage as string) || null);
     setImages((content.elements as ImageItem[]) || []);
     setCanvasFrames((content.frames as CanvasFrame[]) || []); // restore frames
     setSelectedImageId(null);
-          // Board loaded successfully
+    // Board loaded successfully
   };
 
   // Save current board content to backend
@@ -577,14 +683,17 @@ const Whiteboard: React.FC = () => {
       frames: canvasFrames, // persist frames
     };
     try {
-      const res = await api.put(`/api/boards/${selectedBoard._id}`, { content });
+      const res = await api.put(`/api/boards/${selectedBoard._id}`, {
+        content,
+      });
       if (res.status === 200) {
         showNotification('Board saved successfully!', 'success');
         setSaving(false);
       }
     } catch (error: unknown) {
       console.error('Failed to save board:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save board';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to save board';
       showNotification(errorMessage, 'error');
       setSaving(false);
     }
@@ -632,14 +741,19 @@ const Whiteboard: React.FC = () => {
   };
 
   // Update handleBackgroundUpload to upload the file to the backend and use the returned URL
-  const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBackgroundUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64String = reader.result as string;
       setBackgroundImage(base64String);
-      showNotification('Background image uploaded successfully - Click Save to persist changes', 'success');
+      showNotification(
+        'Background image uploaded successfully - Click Save to persist changes',
+        'success'
+      );
     };
     reader.readAsDataURL(file);
     if (backgroundInputRef.current) backgroundInputRef.current.value = '';
@@ -647,10 +761,10 @@ const Whiteboard: React.FC = () => {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    
+
     const processFiles = async () => {
       const newImages: ImageItem[] = [];
-      
+
       for (const file of files) {
         try {
           // Validate file type
@@ -658,26 +772,26 @@ const Whiteboard: React.FC = () => {
             showNotification('Please select a valid image file', 'error');
             continue;
           }
-          
+
           // Validate file size (max 5MB)
           if (file.size > 5 * 1024 * 1024) {
             showNotification('Image file size must be less than 5MB', 'error');
             continue;
           }
-          
+
           const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
             reader.onerror = reject;
             reader.readAsDataURL(file);
           });
-          
+
           // Validate base64 string
           if (!base64.startsWith('data:image/')) {
             showNotification('Failed to process image', 'error');
             continue;
           }
-          
+
           newImages.push({
             id: Date.now() + Math.random(),
             src: base64,
@@ -686,18 +800,21 @@ const Whiteboard: React.FC = () => {
             width: 100,
             height: 100,
           });
-          
-          showNotification(`Image "${file.name}" uploaded successfully - Click Save to persist changes`, 'success');
+
+          showNotification(
+            `Image "${file.name}" uploaded successfully - Click Save to persist changes`,
+            'success'
+          );
         } catch (error) {
           showNotification('Failed to process image', 'error');
         }
       }
-      
+
       if (newImages.length > 0) {
         setImages((prev) => [...prev, ...newImages]);
       }
     };
-    
+
     processFiles();
     if (addImagesInputRef.current) addImagesInputRef.current.value = '';
   };
@@ -728,10 +845,15 @@ const Whiteboard: React.FC = () => {
   const handleReset = async () => {
     if (selectedBoard && token) {
       try {
-        await fetch(`${import.meta.env.VITE_API_URL}/api/boards/${selectedBoard._id}/archive`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await fetch(
+          `${import.meta.env.VITE_API_URL}/api/boards/${
+            selectedBoard._id
+          }/archive`,
+          {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
       } catch (err) {
         setError('Failed to reset board');
       }
@@ -759,13 +881,18 @@ const Whiteboard: React.FC = () => {
   // Delete board with confirmation
   const handleDeleteBoard = async (boardId: string) => {
     if (!token) return;
-    const confirmDelete = window.confirm('Are you sure you want to delete this board? This action cannot be undone.');
+    const confirmDelete = window.confirm(
+      'Are you sure you want to delete this board? This action cannot be undone.'
+    );
     if (!confirmDelete) return;
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/boards/${boardId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/boards/${boardId}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       if (!res.ok) throw new Error('Failed to delete board');
       setBoards((prev) => {
         const newBoards = prev.filter((b) => b._id !== boardId);
@@ -799,9 +926,9 @@ const Whiteboard: React.FC = () => {
 
     // Wait for all images inside the board area to load
     const images = boardArea.querySelectorAll('img');
-    const promises = Array.from(images).map(img => {
+    const promises = Array.from(images).map((img) => {
       if (img.complete && img.naturalWidth !== 0) return Promise.resolve();
-      return new Promise(resolve => {
+      return new Promise((resolve) => {
         img.onload = img.onerror = resolve;
       });
     });
@@ -819,7 +946,10 @@ const Whiteboard: React.FC = () => {
 
   // Add keyframes for spinner animation
   const spinnerKeyframes = `@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`;
-  if (typeof document !== 'undefined' && !document.getElementById('spinner-keyframes')) {
+  if (
+    typeof document !== 'undefined' &&
+    !document.getElementById('spinner-keyframes')
+  ) {
     const style = document.createElement('style');
     style.id = 'spinner-keyframes';
     style.innerHTML = spinnerKeyframes;
@@ -835,13 +965,15 @@ const Whiteboard: React.FC = () => {
   // Fetch userId on mount
   useEffect(() => {
     if (!token) return;
-    api.get('/api/boards', {
-      headers: { Authorization: `Bearer ${token}` },
-    }).then(res => {
-      if (res.data && res.data.length > 0 && res.data[0].user) {
-        setUserId(res.data[0].user);
-      }
-    });
+    api
+      .get('/api/boards', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        if (res.data && res.data.length > 0 && res.data[0].user) {
+          setUserId(res.data[0].user);
+        }
+      });
   }, [token]);
 
   // Remove setTimeout or direct .focus() from handleOpenSettings
@@ -849,7 +981,7 @@ const Whiteboard: React.FC = () => {
     setSettingsOpen(true);
     setSettingsUsername(username);
     // Fetch current user data including email
-    api.get('/api/users/me').then(res => {
+    api.get('/api/users/me').then((res) => {
       if (res.data && res.data.email) {
         setSettingsEmail(res.data.email);
         setCurrentEmail(res.data.email);
@@ -884,30 +1016,26 @@ const Whiteboard: React.FC = () => {
     setSettingsSuccess('');
     try {
       const updateData: any = {
-        username: settingsUsername
+        username: settingsUsername,
       };
-      
+
       if (settingsEmail) updateData.email = settingsEmail;
       if (settingsPassword) updateData.password = settingsPassword;
-      
+
       // Handle avatar update
       if (settingsAvatarPreview) {
         updateData.avatar = settingsAvatarPreview;
       } else if (!settingsAvatar && !settingsAvatarPreview) {
         updateData.removeAvatar = 'true';
       }
-      
-      const res = await api.patch(
-        `/api/users/${userId}`,
-        updateData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-        }
-      );
-      
+
+      const res = await api.patch(`/api/users/${userId}`, updateData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
       if (res.data) {
         setSettingsSuccess('Profile updated!');
         setSettingsOpen(false);
@@ -917,7 +1045,7 @@ const Whiteboard: React.FC = () => {
         setSettingsPassword('');
         setShowPasswordInput(false);
         localStorage.setItem('username', res.data.username);
-        
+
         // Update avatar state
         if (res.data.avatar) {
           setUserAvatar(res.data.avatar);
@@ -930,7 +1058,9 @@ const Whiteboard: React.FC = () => {
         }
       }
     } catch (err: any) {
-      setSettingsError(err.response?.data?.message || 'Failed to update profile');
+      setSettingsError(
+        err.response?.data?.message || 'Failed to update profile'
+      );
     } finally {
       setSettingsLoading(false);
     }
@@ -945,13 +1075,13 @@ const Whiteboard: React.FC = () => {
         showNotification('Please select a valid image file', 'error');
         return;
       }
-      
+
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         showNotification('Image size must be less than 5MB', 'error');
         return;
       }
-      
+
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
@@ -976,7 +1106,15 @@ const Whiteboard: React.FC = () => {
       !!settingsAvatarPreview ||
       (settingsAvatarPreview === null && userAvatar !== null);
     setSettingsChanged(changed);
-  }, [settingsUsername, username, settingsEmail, currentEmail, settingsPassword, settingsAvatarPreview, userAvatar]);
+  }, [
+    settingsUsername,
+    username,
+    settingsEmail,
+    currentEmail,
+    settingsPassword,
+    settingsAvatarPreview,
+    userAvatar,
+  ]);
 
   // Determine if the current user is the owner
   const isOwner = selectedBoard && selectedBoard.user === userId;
@@ -988,7 +1126,13 @@ const Whiteboard: React.FC = () => {
   // Restore handleDecorUpload for decor image uploads
   const handleDecorUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !['image/png', 'image/webp', 'image/jpeg', 'image/jpg'].includes(file.type)) return;
+    if (
+      !file ||
+      !['image/png', 'image/webp', 'image/jpeg', 'image/jpg'].includes(
+        file.type
+      )
+    )
+      return;
     const formData = new FormData();
     formData.append('image', file);
     setDecorLoading(true);
@@ -1010,8 +1154,9 @@ const Whiteboard: React.FC = () => {
     if (storedRole) {
       setUserRole(storedRole);
     } else if (token) {
-             api.get('/api/users/me')
-        .then(res => {
+      api
+        .get('/api/users/me')
+        .then((res) => {
           if (res.data && res.data.role) {
             setUserRole(res.data.role);
             localStorage.setItem('role', res.data.role);
@@ -1038,7 +1183,7 @@ const Whiteboard: React.FC = () => {
         console.error('Failed to fetch user data:', err);
       }
     };
-    
+
     fetchUserData();
   }, []); // Empty dependency array - only run once on mount
 
@@ -1048,7 +1193,8 @@ const Whiteboard: React.FC = () => {
   const isProPlus = userPlan === 'Pro+';
 
   // Update your feature restriction checks
-  const boardLimitReached = (isBasic && boards.length >= 2) || (isPro && boards.length >= 5);
+  const boardLimitReached =
+    (isBasic && boards.length >= 2) || (isPro && boards.length >= 5);
 
   const openUpgradeModal = (feature: string, requiredPlan?: string) => {
     setUpgradeFeature(feature);
@@ -1071,8 +1217,8 @@ const Whiteboard: React.FC = () => {
       }
     };
 
-         // Fetch plan once on mount only
-     fetchUserPlan();
+    // Fetch plan once on mount only
+    fetchUserPlan();
   }, []);
 
   // Update your feature checks
@@ -1100,7 +1246,13 @@ const Whiteboard: React.FC = () => {
             {(() => {
               const avatarDisplay = getAvatarDisplay(userAvatar, username);
               if (avatarDisplay.type === 'base64') {
-                return <img src={avatarDisplay.content} alt="Avatar" className="w-10 h-10 rounded-full object-cover" />;
+                return (
+                  <img
+                    src={avatarDisplay.content}
+                    alt="Avatar"
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                );
               } else {
                 return avatarDisplay.content;
               }
@@ -1132,17 +1284,32 @@ const Whiteboard: React.FC = () => {
             <FaArrowUp size={16} /> Upgrade
           </button>
           <button
-            onClick={isProPlus ? () => setShareOpen(true) : () => openUpgradeModal('Share', 'Pro+')}
-            className={`flex items-center gap-1 px-4 py-2 rounded-full glass-btn font-semibold shadow text-sm transition-colors ${isProPlus ? 'bg-white/10 text-blue-400 hover:text-blue-300' : 'bg-white/10 text-blue-200 cursor-not-allowed opacity-60'}`}
+            onClick={
+              isProPlus
+                ? () => setShareOpen(true)
+                : () => openUpgradeModal('Share', 'Pro+')
+            }
+            className={`flex items-center gap-1 px-4 py-2 rounded-full glass-btn font-semibold shadow text-sm transition-colors ${
+              isProPlus
+                ? 'bg-white/10 text-blue-400 hover:text-blue-300'
+                : 'bg-white/10 text-blue-200 cursor-not-allowed opacity-60'
+            }`}
             style={{ minWidth: 80 }}
-            title={isProPlus ? 'Share this board' : 'Share is not available for your plan.'}
+            title={
+              isProPlus
+                ? 'Share this board'
+                : 'Share is not available for your plan.'
+            }
             disabled={!isProPlus}
           >
             <FaShareAlt size={16} /> Share
           </button>
           {/* Removed save button from header - using save button beside download button instead */}
           <button
-            onClick={() => { localStorage.removeItem('token'); navigate('/login'); }}
+            onClick={() => {
+              localStorage.removeItem('token');
+              navigate('/login');
+            }}
             className="flex items-center gap-1 px-4 py-2 rounded-full glass-btn bg-white/10 text-gray-300 hover:text-white font-semibold shadow text-sm transition-colors"
             style={{ minWidth: 80 }}
             title="Logout"
@@ -1165,7 +1332,7 @@ const Whiteboard: React.FC = () => {
               <div className="flex items-center gap-4 mb-4">
                 <span className="text-blue-700 font-semibold">Boards:</span>
                 <div className="flex flex-wrap gap-2">
-                  {boards.map(board => (
+                  {boards.map((board) => (
                     <div
                       key={board._id}
                       className={`relative group flex items-center rounded-full text-sm font-semibold transition-all shadow px-3 py-1.5 pr-2 bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-900 glass-btn`}
@@ -1178,27 +1345,35 @@ const Whiteboard: React.FC = () => {
                         <input
                           type="text"
                           value={editBoardName}
-                          onChange={e => setEditBoardName(e.target.value)}
+                          onChange={(e) => setEditBoardName(e.target.value)}
                           onBlur={() => saveBoardName(board)}
-                          onKeyDown={e => handleEditInputKey(e, board)}
+                          onKeyDown={(e) => handleEditInputKey(e, board)}
                           className="px-2 py-1 rounded bg-white border border-blue-200 text-blue-900 font-semibold w-32 mr-2"
                           autoFocus
                           disabled={editSaving}
                         />
                       ) : (
-                        <span className="truncate max-w-[110px]">{board.name}</span>
+                        <span className="truncate max-w-[110px]">
+                          {board.name}
+                        </span>
                       )}
                       {isOwner && selectedBoard?._id === board._id && (
                         <div className="flex items-center gap-1 ml-2">
                           <button
-                            onClick={e => { e.stopPropagation(); startEditingBoard(board); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEditingBoard(board);
+                            }}
                             className="p-1 text-blue-500 hover:text-blue-700 transition-colors"
                             title="Edit board name"
                           >
                             <FaEdit size={13} />
                           </button>
                           <button
-                            onClick={e => { e.stopPropagation(); handleDeleteBoard(board._id); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteBoard(board._id);
+                            }}
                             className="p-1 text-red-500 hover:text-red-700 transition-colors"
                             title="Delete board"
                           >
@@ -1216,15 +1391,37 @@ const Whiteboard: React.FC = () => {
                     placeholder="New board name"
                     className="px-4 py-1.5 rounded-full bg-blue-50 text-blue-700 placeholder-blue-400 border border-blue-200 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200 shadow glass-btn"
                     value={newBoardName}
-                    onChange={e => setNewBoardName(e.target.value)}
+                    onChange={(e) => setNewBoardName(e.target.value)}
                     style={{ minWidth: 140 }}
                   />
                   <button
-                    onClick={boardLimitReached ? () => openUpgradeModal('Create Board', isBasic ? 'Pro' : 'Pro+') : handleCreateBoard}
-                    className={`px-4 py-1.5 rounded-full glass-btn font-semibold shadow text-sm transition-colors ${(boardLimitReached) ? 'bg-blue-50 text-blue-300 cursor-not-allowed' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
+                    onClick={
+                      boardLimitReached
+                        ? () =>
+                            openUpgradeModal(
+                              'Create Board',
+                              isBasic ? 'Pro' : 'Pro+'
+                            )
+                        : handleCreateBoard
+                    }
+                    className={`px-4 py-1.5 rounded-full glass-btn font-semibold shadow text-sm transition-colors ${
+                      boardLimitReached
+                        ? 'bg-blue-50 text-blue-300 cursor-not-allowed'
+                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    }`}
                     style={{ minWidth: 80 }}
                     disabled={boardLimitReached}
-                    title={isBasic ? (boardLimitReached ? 'Basic users can only create 2 boards.' : '') : isPro ? (boardLimitReached ? 'Pro users can only create 5 boards.' : '') : ''}
+                    title={
+                      isBasic
+                        ? boardLimitReached
+                          ? 'Basic users can only create 2 boards.'
+                          : ''
+                        : isPro
+                        ? boardLimitReached
+                          ? 'Pro users can only create 5 boards.'
+                          : ''
+                        : ''
+                    }
                   >
                     + Create
                   </button>
@@ -1248,20 +1445,42 @@ const Whiteboard: React.FC = () => {
                     )}
                   </button>
                   <button
-                    onClick={isBasic ? () => openUpgradeModal('Download', 'Pro/Pro+') : () => handleDownloadBoard('png')}
-                    className={`flex items-center gap-1 px-4 py-1.5 rounded-full glass-btn font-semibold shadow text-sm transition-colors ${isBasic ? 'bg-blue-50 text-blue-300 cursor-not-allowed' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
+                    onClick={
+                      isBasic
+                        ? () => openUpgradeModal('Download', 'Pro/Pro+')
+                        : () => handleDownloadBoard('png')
+                    }
+                    className={`flex items-center gap-1 px-4 py-1.5 rounded-full glass-btn font-semibold shadow text-sm transition-colors ${
+                      isBasic
+                        ? 'bg-blue-50 text-blue-300 cursor-not-allowed'
+                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    }`}
                     style={{ minWidth: 80 }}
                     disabled={isBasic}
-                    title={isBasic ? 'Download is not available for Basic users.' : ''}
+                    title={
+                      isBasic
+                        ? 'Download is not available for Basic users.'
+                        : ''
+                    }
                   >
                     <span className="font-bold">Download</span>
                   </button>
                   <button
-                    onClick={isBasic ? () => openUpgradeModal('Reset', 'Pro/Pro+') : handleReset}
-                    className={`flex items-center gap-1 px-4 py-1.5 rounded-full glass-btn font-semibold shadow text-sm transition-colors ${isBasic ? 'bg-red-50 text-red-300 cursor-not-allowed' : 'bg-red-100 text-red-600 hover:bg-red-200'}`}
+                    onClick={
+                      isBasic
+                        ? () => openUpgradeModal('Reset', 'Pro/Pro+')
+                        : handleReset
+                    }
+                    className={`flex items-center gap-1 px-4 py-1.5 rounded-full glass-btn font-semibold shadow text-sm transition-colors ${
+                      isBasic
+                        ? 'bg-red-50 text-red-300 cursor-not-allowed'
+                        : 'bg-red-100 text-red-600 hover:bg-red-200'
+                    }`}
                     style={{ minWidth: 80 }}
                     disabled={isBasic}
-                    title={isBasic ? 'Reset is not available for Basic users.' : ''}
+                    title={
+                      isBasic ? 'Reset is not available for Basic users.' : ''
+                    }
                   >
                     <span className="font-bold">Reset</span>
                   </button>
@@ -1272,7 +1491,9 @@ const Whiteboard: React.FC = () => {
           {/* Error and Saving */}
           {(error || saving) && (
             <div className="w-full flex justify-center mt-2">
-              {error && <span className="text-red-500 font-medium">{error}</span>}
+              {error && (
+                <span className="text-red-500 font-medium">{error}</span>
+              )}
               {saving && <span className="text-blue-500 ml-4">Saving...</span>}
             </div>
           )}
@@ -1287,24 +1508,36 @@ const Whiteboard: React.FC = () => {
                     size={{ width: widthNum, height: heightNum }}
                     position={{ x: 0, y: 0 }}
                     disableDragging={true}
-                    enableResizing={sharePermission !== 'view' ? { bottom: true, right: true, bottomRight: true } : {}}
+                    enableResizing={
+                      sharePermission !== 'view'
+                        ? { bottom: true, right: true, bottomRight: true }
+                        : {}
+                    }
                     onResizeStop={(_, __, ref) => {
                       if (sharePermission === 'view') return;
-                      setBoardSize({ width: ref.offsetWidth.toString(), height: ref.offsetHeight.toString() });
+                      setBoardSize({
+                        width: ref.offsetWidth.toString(),
+                        height: ref.offsetHeight.toString(),
+                      });
                     }}
                     minWidth={300}
                     minHeight={300}
                     bounds="parent"
                     className="relative bg-transparent overflow-hidden rounded-lg border border-gray-200 shadow-md"
                   >
-                    {backgroundImage && backgroundImage.trim() !== '' && !backgroundImage.startsWith('blob:') && (
-                      <img
-                        src={backgroundImage}
-                        alt="Background"
-                        className="absolute top-0 left-0 w-full h-full object-fill z-0 rounded-lg"
-                        style={{ objectFit: 'fill', objectPosition: 'center' }}
-                      />
-                    )}
+                    {backgroundImage &&
+                      backgroundImage.trim() !== '' &&
+                      !backgroundImage.startsWith('blob:') && (
+                        <img
+                          src={backgroundImage}
+                          alt="Background"
+                          className="absolute top-0 left-0 w-full h-full object-fill z-0 rounded-lg"
+                          style={{
+                            objectFit: 'fill',
+                            objectPosition: 'center',
+                          }}
+                        />
+                      )}
                     {/* Render frames first (background) */}
                     {canvasFrames.map((frame) => (
                       <Rnd
@@ -1339,11 +1572,22 @@ const Whiteboard: React.FC = () => {
                         className="absolute"
                         style={{ zIndex: 0 }}
                       >
-                        <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            position: 'relative',
+                            width: '100%',
+                            height: '100%',
+                            overflow: 'hidden',
+                          }}
+                        >
                           {/* Delete button for frame */}
                           {sharePermission !== 'view' && (
                             <button
-                              onClick={() => setCanvasFrames((prev) => prev.filter((f) => f.id !== frame.id))}
+                              onClick={() =>
+                                setCanvasFrames((prev) =>
+                                  prev.filter((f) => f.id !== frame.id)
+                                )
+                              }
                               style={{
                                 position: 'absolute',
                                 top: 4,
@@ -1362,7 +1606,15 @@ const Whiteboard: React.FC = () => {
                               }}
                               title="Delete Frame"
                             >
-                              <span style={{ color: '#e53e3e', fontWeight: 'bold', fontSize: 16 }}>&times;</span>
+                              <span
+                                style={{
+                                  color: '#e53e3e',
+                                  fontWeight: 'bold',
+                                  fontSize: 16,
+                                }}
+                              >
+                                &times;
+                              </span>
                             </button>
                           )}
                           {/* Centered, slightly smaller image or upload area */}
@@ -1420,14 +1672,19 @@ const Whiteboard: React.FC = () => {
                                 cursor: 'pointer',
                               }}
                             >
-                              <span className="text-xs text-gray-700">Upload Image</span>
+                              <span className="text-xs text-gray-700">
+                                Upload Image
+                              </span>
                               <input
                                 type="file"
                                 accept="image/*"
                                 style={{ display: 'none' }}
                                 onChange={(e) => {
                                   if (e.target.files && e.target.files[0]) {
-                                    handleFrameImageUpload(frame.id, e.target.files[0]);
+                                    handleFrameImageUpload(
+                                      frame.id,
+                                      e.target.files[0]
+                                    );
                                   }
                                 }}
                               />
@@ -1437,7 +1694,15 @@ const Whiteboard: React.FC = () => {
                           <img
                             src={frame.frameSrc}
                             alt="Frame"
-                            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none' }}
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              zIndex: 0,
+                              pointerEvents: 'none',
+                            }}
                           />
                         </div>
                       </Rnd>
@@ -1508,7 +1773,9 @@ const Whiteboard: React.FC = () => {
                               src={img.src}
                               alt="Draggable"
                               className={`w-full h-full ${
-                                isHovered ? 'border-2 border-blue-500' : 'border border-transparent'
+                                isHovered
+                                  ? 'border-2 border-blue-500'
+                                  : 'border border-transparent'
                               } ${
                                 shape === 'circle'
                                   ? 'object-cover clip-circle-img'
@@ -1518,7 +1785,8 @@ const Whiteboard: React.FC = () => {
                                 width: '100%',
                                 height: '100%',
                                 objectFit: 'fill',
-                                borderRadius: shape === 'circle' ? '50%' : undefined,
+                                borderRadius:
+                                  shape === 'circle' ? '50%' : undefined,
                                 imageRendering: 'auto',
                                 display: 'block',
                                 background: 'none',
@@ -1538,195 +1806,295 @@ const Whiteboard: React.FC = () => {
                 </div>
               </section>
               {/* Sidebar Tools: only for owner or edit permission, not for view links */}
-              {(isOwner || sharePermission === 'edit') && sharePermission !== 'view' && (
-                <aside className="w-full md:w-80 min-w-[250px] max-h-[calc(100vh-100px)] overflow-y-auto bg-[#f4f5f7] backdrop-blur-md border border-gray-200 shadow-xl rounded-2xl p-6 space-y-4 flex-shrink-0">
-                  <h2 className="text-xl font-extrabold mb-2 text-gray-900">Tools</h2>
-                  {/* Manual Board Size Inputs */}
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-semibold text-gray-700">Board Width (px)</label>
-                    <input
-                      type="number"
-                      name="width"
-                      max={2000}
-                      value={boardSize.width}
-                      onChange={handleSizeChange}
-                      className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-                      placeholder="Enter width ≥ 300"
-                    />
-                    <label className="text-sm font-semibold text-gray-700">Board Height (px)</label>
-                    <input
-                      type="number"
-                      name="height"
-                      max={2000}
-                      value={boardSize.height}
-                      onChange={handleSizeChange}
-                      className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-                      placeholder="Enter height ≥ 300"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                      Upload Background
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleBackgroundUpload}
-                      ref={backgroundInputRef}
-                      className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-semibold text-gray-700">Add Images</label>
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      ref={addImagesInputRef}
-                      className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-                    />
-                  </div>
-                  {/* Shapes section - only for image items, not decor items */}
-                  {selectedImageId && (() => {
-                    const selectedImg = images.find(img => img.id === selectedImageId);
-                    const isDefaultDecor = selectedImg && DEFAULT_DECORS.some(decor => decor.src === selectedImg.src);
-                    const isUserDecor = selectedImg && decors.some(decor => `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${decor.imageUrl}` === selectedImg.src);
-                    if (!selectedImg || isDefaultDecor || isUserDecor) return null;
-                    return (
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Shapes</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          {[
-                            {
-                              shape: 'rectangle',
-                              icon: (
-                                <svg width="24" height="24">
-                                  <rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" strokeWidth="2" />
-                                </svg>
-                              ),
-                              label: 'Rectangle',
-                            },
-                            {
-                              shape: 'circle',
-                              icon: (
-                                <svg width="24" height="24">
-                                  <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="2" />
-                                </svg>
-                              ),
-                              label: 'Circle',
-                            },
-                          ].map(({ shape, icon, label }) => (
-                            <button
-                              key={shape}
-                              className={`flex flex-col items-center justify-center px-2 py-2 rounded border border-gray-300 transition-colors
-                                ${images.find((img) => img.id === selectedImageId)?.shape === shape
-                                  ? 'bg-blue-600 text-white border-blue-600'
-                                  : 'bg-gray-100 hover:bg-blue-100'
+              {(isOwner || sharePermission === 'edit') &&
+                sharePermission !== 'view' && (
+                  <aside className="w-full md:w-80 min-w-[250px] max-h-[calc(100vh-100px)] overflow-y-auto bg-[#f4f5f7] backdrop-blur-md border border-gray-200 shadow-xl rounded-2xl p-6 space-y-4 flex-shrink-0">
+                    <h2 className="text-xl font-extrabold mb-2 text-gray-900">
+                      Tools
+                    </h2>
+                    {/* Manual Board Size Inputs */}
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm font-semibold text-gray-700">
+                        Board Width (px)
+                      </label>
+                      <input
+                        type="number"
+                        name="width"
+                        max={2000}
+                        value={boardSize.width}
+                        onChange={handleSizeChange}
+                        className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+                        placeholder="Enter width ≥ 300"
+                      />
+                      <label className="text-sm font-semibold text-gray-700">
+                        Board Height (px)
+                      </label>
+                      <input
+                        type="number"
+                        name="height"
+                        max={2000}
+                        value={boardSize.height}
+                        onChange={handleSizeChange}
+                        className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+                        placeholder="Enter height ≥ 300"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        Upload Background
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleBackgroundUpload}
+                        ref={backgroundInputRef}
+                        className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm font-semibold text-gray-700">
+                        Add Images
+                      </label>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        ref={addImagesInputRef}
+                        className="block w-full text-sm border border-gray-300 rounded-lg cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+                      />
+                    </div>
+                    {/* Shapes section - only for image items, not decor items */}
+                    {selectedImageId &&
+                      (() => {
+                        const selectedImg = images.find(
+                          (img) => img.id === selectedImageId
+                        );
+                        const isDefaultDecor =
+                          selectedImg &&
+                          DEFAULT_DECORS.some(
+                            (decor) => decor.src === selectedImg.src
+                          );
+                        const isUserDecor =
+                          selectedImg &&
+                          decors.some(
+                            (decor) => decor.imageUrl === selectedImg.src
+                          );
+                        if (!selectedImg || isDefaultDecor || isUserDecor)
+                          return null;
+                        return (
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">
+                              Shapes
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {[
+                                {
+                                  shape: 'rectangle',
+                                  icon: (
+                                    <svg width="24" height="24">
+                                      <rect
+                                        x="4"
+                                        y="4"
+                                        width="16"
+                                        height="16"
+                                        rx="4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                      />
+                                    </svg>
+                                  ),
+                                  label: 'Rectangle',
+                                },
+                                {
+                                  shape: 'circle',
+                                  icon: (
+                                    <svg width="24" height="24">
+                                      <circle
+                                        cx="12"
+                                        cy="12"
+                                        r="8"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                      />
+                                    </svg>
+                                  ),
+                                  label: 'Circle',
+                                },
+                              ].map(({ shape, icon, label }) => (
+                                <button
+                                  key={shape}
+                                  className={`flex flex-col items-center justify-center px-2 py-2 rounded border border-gray-300 transition-colors
+                                ${
+                                  images.find(
+                                    (img) => img.id === selectedImageId
+                                  )?.shape === shape
+                                    ? 'bg-blue-600 text-white border-blue-600'
+                                    : 'bg-gray-100 hover:bg-blue-100'
                                 }`}
-                              onClick={() => handleShapeSelect(shape as any)}
-                            >
-                              {icon}
-                              <span className="text-xs mt-1">{label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  <div className="mt-6">
-                    <h3 className="text-lg font-bold mb-2 text-gray-900">Decors</h3>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {/* Default decors */}
-                      {DEFAULT_DECORS.map((decor) => (
-                        <button
-                          key={decor.src}
-                          className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition relative"
-                          title={decor.name}
-                          onClick={() => handleAddDecorToCanvas(decor.src)}
-                          style={{ padding: 2 }}
-                        >
-                          <img src={decor.src} alt={decor.name} className="max-w-full max-h-full object-contain" />
-                        </button>
-                      ))}
-                      {/* User decors */}
-                      {decors.map((decor) => (
-                        <div key={decor._id} className="relative group">
+                                  onClick={() =>
+                                    handleShapeSelect(shape as any)
+                                  }
+                                >
+                                  {icon}
+                                  <span className="text-xs mt-1">{label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    <div className="mt-6">
+                      <h3 className="text-lg font-bold mb-2 text-gray-900">
+                        Decors
+                      </h3>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {/* Default decors */}
+                        {DEFAULT_DECORS.map((decor) => (
                           <button
-                            className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition"
-                            title={decor.originalFilename}
-                            onClick={() => handleAddDecorToCanvas(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${decor.imageUrl}`)}
+                            key={decor.src}
+                            className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition relative"
+                            title={decor.name}
+                            onClick={() => handleAddDecorToCanvas(decor.src)}
                             style={{ padding: 2 }}
                           >
-                                                         <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${decor.imageUrl}`} alt={decor.originalFilename} className="max-w-full max-h-full object-contain" />
+                            <img
+                              src={decor.src}
+                              alt={decor.name}
+                              className="max-w-full max-h-full object-contain"
+                            />
                           </button>
-                          {sharePermission !== 'view' && (
+                        ))}
+                        {/* User decors */}
+                        {decors.map((decor) => (
+                          <div key={decor._id} className="relative group">
                             <button
-                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition"
-                              onClick={() => handleDeleteDecor(decor._id)}
-                              title="Delete"
+                              className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition"
+                              title={decor.originalFilename}
+                              onClick={() =>
+                                handleAddDecorToCanvas(
+                                  `${
+                                    import.meta.env.VITE_API_URL ||
+                                    'http://localhost:5001'
+                                  }${decor.imageUrl}`
+                                )
+                              }
+                              style={{ padding: 2 }}
                             >
-                              ×
+                              <img
+                                src={`${
+                                  import.meta.env.VITE_API_URL ||
+                                  'http://localhost:5001'
+                                }${decor.imageUrl}`}
+                                alt={decor.originalFilename}
+                                className="max-w-full max-h-full object-contain"
+                              />
                             </button>
-                          )}
-                        </div>
-                      ))}
-                      {decorLoading && <span className="text-xs text-gray-400">Loading...</span>}
+                            {sharePermission !== 'view' && (
+                              <button
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition"
+                                onClick={() => handleDeleteDecor(decor._id)}
+                                title="Delete"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        {decorLoading && (
+                          <span className="text-xs text-gray-400">
+                            Loading...
+                          </span>
+                        )}
+                      </div>
+                      {/* In the decor upload section: */}
+                      {/* Only show upload input for Pro+ users */}
+                      {isProPlus && (
+                        <input
+                          type="file"
+                          accept="image/png,image/webp,image/jpeg,image/jpg"
+                          onChange={handleDecorUpload}
+                          ref={decorInputRef}
+                          className="block w-full text-xs border border-gray-300 rounded cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
+                          style={{ marginTop: 4 }}
+                        />
+                      )}
+                      {(isBasic || isPro) && (
+                        <input
+                          type="file"
+                          disabled
+                          className="block w-full text-xs border border-gray-300 rounded cursor-not-allowed bg-[#f4f5f7] text-gray-400 placeholder-gray-400 shadow-sm opacity-50"
+                          style={{ marginTop: 4 }}
+                          title={
+                            isBasic
+                              ? 'Decor upload is not available for Basic users.'
+                              : 'Decor upload is not available for Pro users.'
+                          }
+                        />
+                      )}
+                      <span className="text-xs text-gray-500">
+                        PNG/WebP/JPEG only, max 5MB
+                      </span>
                     </div>
-                    {/* In the decor upload section: */}
-                    {/* Only show upload input for Pro+ users */}
-                    {isProPlus && (
-                      <input
-                        type="file"
-                        accept="image/png,image/webp,image/jpeg,image/jpg"
-                        onChange={handleDecorUpload}
-                        ref={decorInputRef}
-                        className="block w-full text-xs border border-gray-300 rounded cursor-pointer bg-[#f4f5f7] text-gray-900 placeholder-gray-400 shadow-sm"
-                        style={{ marginTop: 4 }}
-                      />
-                    )}
-                    {(isBasic || isPro) && (
-                      <input
-                        type="file"
-                        disabled
-                        className="block w-full text-xs border border-gray-300 rounded cursor-not-allowed bg-[#f4f5f7] text-gray-400 placeholder-gray-400 shadow-sm opacity-50"
-                        style={{ marginTop: 4 }}
-                        title={isBasic ? 'Decor upload is not available for Basic users.' : 'Decor upload is not available for Pro users.'}
-                      />
-                    )}
-                    <span className="text-xs text-gray-500">PNG/WebP/JPEG only, max 5MB</span>
-                  </div>
-                  {/* Frames section: fade/disable for Basic users */}
-                  <div
-                    style={{ opacity: isBasic ? 0.4 : isPro && canvasFrames.length >= 1 ? 0.7 : 1, pointerEvents: 'auto' }}
-                    title={isBasic ? 'Frames are not available for Basic users.' : isPro && canvasFrames.length >= 1 ? 'Pro users can only have 1 frame.' : ''}
-                    onClick={isBasic ? () => openUpgradeModal('Frames', 'Pro/Pro+') : undefined}
-                  >
-                    <FramesSection
-                      onAddFrame={src => {
-                        if (isBasic) {
-                          openUpgradeModal('Frames', 'Pro/Pro+');
-                          return;
-                        }
-                        if (isPro && canvasFrames.length >= 1) {
-                          openUpgradeModal('More Frames', 'Pro+');
-                          return;
-                        }
-                        handleAddFrameToBoard(src);
+                    {/* Frames section: fade/disable for Basic users */}
+                    <div
+                      style={{
+                        opacity: isBasic
+                          ? 0.4
+                          : isPro && canvasFrames.length >= 1
+                          ? 0.7
+                          : 1,
+                        pointerEvents: 'auto',
                       }}
-                      disableAdd={isBasic || (isPro && canvasFrames.length >= 1)}
-                      onUpgradeClick={() => openUpgradeModal(isBasic ? 'Frames' : 'More Frames', isBasic ? 'Pro/Pro+' : 'Pro+')}
-                    />
-                  </div>
-                  
-                  {/* Removed footer save button - header save button is used instead */}
-                </aside>
-              )}
+                      title={
+                        isBasic
+                          ? 'Frames are not available for Basic users.'
+                          : isPro && canvasFrames.length >= 1
+                          ? 'Pro users can only have 1 frame.'
+                          : ''
+                      }
+                      onClick={
+                        isBasic
+                          ? () => openUpgradeModal('Frames', 'Pro/Pro+')
+                          : undefined
+                      }
+                    >
+                      <FramesSection
+                        onAddFrame={(src) => {
+                          if (isBasic) {
+                            openUpgradeModal('Frames', 'Pro/Pro+');
+                            return;
+                          }
+                          if (isPro && canvasFrames.length >= 1) {
+                            openUpgradeModal('More Frames', 'Pro+');
+                            return;
+                          }
+                          handleAddFrameToBoard(src);
+                        }}
+                        disableAdd={
+                          isBasic || (isPro && canvasFrames.length >= 1)
+                        }
+                        onUpgradeClick={() =>
+                          openUpgradeModal(
+                            isBasic ? 'Frames' : 'More Frames',
+                            isBasic ? 'Pro/Pro+' : 'Pro+'
+                          )
+                        }
+                      />
+                    </div>
+
+                    {/* Removed footer save button - header save button is used instead */}
+                  </aside>
+                )}
             </div>
           </main>
         </>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-gray-500 text-xl">No board found</div>
+        <div className="flex-1 flex items-center justify-center text-gray-500 text-xl">
+          No board found
+        </div>
       )}
       {settingsOpen && (
         <SettingsModal
@@ -1766,8 +2134,13 @@ const Whiteboard: React.FC = () => {
         />
       )}
       {/* Upgrade Modal */}
-      <UpgradeModal open={upgradeModalOpen} onClose={() => setUpgradeModalOpen(false)} feature={upgradeFeature} requiredPlan={upgradeRequiredPlan} />
-             {/* Removed polling notification - users can refresh manually when needed */}
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        feature={upgradeFeature}
+        requiredPlan={upgradeRequiredPlan}
+      />
+      {/* Removed polling notification - users can refresh manually when needed */}
     </div>
   );
 };
