@@ -9,10 +9,11 @@ This guide covers the secure deployment process for both development and product
 ### 1. Environment Setup
 
 1. Generate secure credentials:
+
    ```bash
    # Generate secure JWT secret
    JWT_SECRET=$(openssl rand -base64 32)
-   
+
    # Generate secure database password
    DB_PASSWORD=$(openssl rand -base64 24)
    ```
@@ -23,7 +24,6 @@ This guide covers the secure deployment process for both development and product
    ./configure-local.sh
    ```
    This creates `~/.intern-board.env` with your secure credentials.
-   
 3. Important Security Rules:
    - Never commit credentials or .env files to git
    - Store sensitive data only in `~/.intern-board.env`
@@ -34,24 +34,26 @@ This guide covers the secure deployment process for both development and product
 ### 2. AWS Configuration
 
 1. Create an IAM user with minimal permissions:
+
    - S3 bucket access (read/write for specific buckets only)
    - CloudWatch logging (write only)
    - Enable MFA for the IAM user
    - Generate and securely store access keys
 
 2. Configure S3 buckets with security best practices:
+
    ```bash
    # Configure buckets with proper permissions
    ./configure-s3-buckets.sh
-   
+
    # Setup CORS with strict origin checking
    ./configure-s3-cors.sh
-   
+
    # Enable bucket versioning
    aws s3api put-bucket-versioning \
      --bucket $BUCKET_NAME \
      --versioning-configuration Status=Enabled
-     
+
    # Enable access logging
    aws s3api put-bucket-logging \
      --bucket $BUCKET_NAME \
@@ -69,10 +71,11 @@ This guide covers the secure deployment process for both development and product
 ### Backend Deployment
 
 1. Configure production environment:
+
    ```bash
    # First time setup
    ./scripts/configure-local.sh
-   
+
    # Deploy to EC2
    ./deploy-backend.sh
    ```
@@ -82,9 +85,10 @@ This guide covers the secure deployment process for both development and product
    ./verify-deployment.sh
    ```
 
-### Frontend Deployment 
+### Frontend Deployment
 
 1. Build the frontend:
+
    ```bash
    cd frontend
    npm run build
@@ -104,6 +108,7 @@ This guide covers the secure deployment process for both development and product
 ## Credential Rotation
 
 Regularly rotate credentials using:
+
 ```bash
 ./backend/rotate-credentials.sh
 ```

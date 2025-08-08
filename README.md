@@ -2,7 +2,6 @@
 
 A collaborative, customizable whiteboard web application for creating, decorating, and managing visual boards. Users can upload images, add decorative elements, frames, and backgrounds, and save or download their boards. Built with a React + TypeScript frontend and a Node.js + Express + MongoDB backend.
 
-
 ## Features
 
 - **User Authentication**: Secure login and signup with JWT.
@@ -35,7 +34,7 @@ A collaborative, customizable whiteboard web application for creating, decoratin
 ### Prerequisites
 
 - Node.js (v16+ recommended)
-- npm 
+- npm
 - MongoDB (local or cloud)
 
 ### Installation
@@ -50,12 +49,14 @@ cd canvas-board
 #### 2. Install dependencies
 
 **Backend:**
+
 ```bash
 cd backend
 npm install
 ```
 
 **Frontend:**
+
 ```bash
 cd ../frontend
 npm install
@@ -64,6 +65,7 @@ npm install
 #### 3. Configure Environment
 
 1. Run the environment setup script:
+
    ```bash
    # Configure environment variables
    cd backend/scripts
@@ -71,6 +73,7 @@ npm install
    ```
 
    This will:
+
    - Generate secure credentials
    - Set up AWS S3 configuration
    - Configure MongoDB connection
@@ -97,12 +100,14 @@ mongod
 ```
 
 **Start Backend:**
+
 ```bash
 cd backend
 npm start
 ```
 
 **Start Frontend:**
+
 ```bash
 cd ../frontend
 npm run dev
