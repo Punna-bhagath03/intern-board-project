@@ -1,5 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { s3Client } = require('../utils/s3');
 const Board = require('../models/Board');
 const { BoardArchive } = require('../models/Board');
 const Decor = require('../models/Decor');
@@ -39,7 +41,9 @@ router.get('/boards', authenticateToken, async (req, res) => {
 // GET /boards/latest - get the latest board for the authenticated user
 router.get('/boards/latest', authenticateToken, async (req, res) => {
   try {
-    const board = await Board.findOne({ user: req.user.userId }).sort({ createdAt: -1 });
+    const board = await Board.findOne({ user: req.user.userId }).sort({
+      createdAt: -1,
+    });
     if (!board) return res.status(404).json({ message: 'No boards found' });
     res.json(board);
   } catch (err) {
@@ -59,19 +63,23 @@ router.post('/boards', authenticateToken, async (req, res) => {
       if (user.plan === 'Basic') {
         const boardCount = await Board.countDocuments({ user: user._id });
         if (boardCount >= 2) {
-          return res.status(403).json({ message: 'Basic plan users can only create up to 2 boards.' });
+          return res.status(403).json({
+            message: 'Basic plan users can only create up to 2 boards.',
+          });
         }
       } else if (user.plan === 'Pro') {
         const boardCount = await Board.countDocuments({ user: user._id });
         if (boardCount >= 5) {
-          return res.status(403).json({ message: 'Pro plan users can only create up to 5 boards.' });
+          return res.status(403).json({
+            message: 'Pro plan users can only create up to 5 boards.',
+          });
         }
       }
     }
     const board = new Board({
       user: req.user.userId,
       name,
-      content
+      content,
     });
     await board.save();
 
@@ -89,7 +97,7 @@ router.post('/boards', authenticateToken, async (req, res) => {
               <p>You can access your board by logging into your account.</p>
               <p style="color: #666;">This is an automated notification. Please do not reply to this email.</p>
             </div>
-          `
+          `,
         });
       } catch (emailErr) {
         console.error('Failed to send email notification:', emailErr);
@@ -110,27 +118,30 @@ router.get('/boards/:id', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     const shareToken = req.headers['x-share-token'];
     console.log('GET /boards/:id', { boardId, userId, shareToken });
-    
+
     // Try owner access
     let board = await Board.findOne({ _id: boardId, user: userId });
     if (board) {
       console.log('Access: owner', { boardId, userId });
       return res.json(board);
     }
-    
+
     // Try collaborator access
-    board = await Board.findOne({ _id: boardId, 'collaborators.userId': userId });
+    board = await Board.findOne({
+      _id: boardId,
+      'collaborators.userId': userId,
+    });
     if (board) {
       console.log('Access: collaborator', { boardId, userId });
       return res.json(board);
     }
-    
+
     // Try share token access
     if (shareToken) {
       console.log('Checking share token access for:', { shareToken, boardId });
       const shareLink = await ShareLink.findOne({ token: shareToken, boardId });
       console.log('ShareLink found:', !!shareLink, shareLink);
-      
+
       if (shareLink && shareLink.expiresAt > new Date()) {
         board = await Board.findById(boardId);
         if (board) {
@@ -145,7 +156,11 @@ router.get('/boards/:id', authenticateToken, async (req, res) => {
               console.log('Added as collaborator', { boardId, userId });
             }
           }
-          console.log('Access: share token', { boardId, userId, permission: shareLink.permission });
+          console.log('Access: share token', {
+            boardId,
+            userId,
+            permission: shareLink.permission,
+          });
           return res.json(board);
         }
       } else if (shareLink && shareLink.expiresAt <= new Date()) {
@@ -157,7 +172,7 @@ router.get('/boards/:id', authenticateToken, async (req, res) => {
         console.log('Share link not found or invalid:', shareToken);
       }
     }
-    
+
     console.log('Access denied', { boardId, userId, shareToken });
     return res.status(404).json({ message: 'Board not found' });
   } catch (err) {
@@ -182,8 +197,11 @@ router.put('/boards/:id', authenticateToken, async (req, res) => {
         _id: req.params.id,
         $or: [
           { user: req.user.userId },
-          { 'collaborators.userId': req.user.userId, 'collaborators.permission': 'edit' }
-        ]
+          {
+            'collaborators.userId': req.user.userId,
+            'collaborators.permission': 'edit',
+          },
+        ],
       },
       updateFields,
       { new: true }
@@ -199,19 +217,22 @@ router.put('/boards/:id', authenticateToken, async (req, res) => {
 router.delete('/boards/:id', authenticateToken, async (req, res) => {
   try {
     const board = await Board.findById(req.params.id);
-    if (!board) return res.status(404).json({ error: "Board not found" });
+    if (!board) return res.status(404).json({ error: 'Board not found' });
 
     const user = await User.findById(req.user.userId);
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
     // Allow if owner or admin
-    if (board.user.toString() !== req.user.userId && (!user || user.role !== 'admin')) {
-      return res.status(403).json({ error: "Unauthorized" });
+    if (
+      board.user.toString() !== req.user.userId &&
+      (!user || user.role !== 'admin')
+    ) {
+      return res.status(403).json({ error: 'Unauthorized' });
     }
 
     // Get board owner's info for notification
     const boardOwner = await User.findById(board.user);
-    
+
     await Board.findByIdAndDelete(req.params.id);
 
     // Send email notification to board owner
@@ -225,13 +246,14 @@ router.delete('/boards/:id', authenticateToken, async (req, res) => {
               <h2 style="color: #ef4444;">Board Deleted</h2>
               <p>Hi ${boardOwner.username},</p>
               <p>Your board <strong>${board.name}</strong> has been deleted.</p>
-              ${user._id.toString() !== board.user.toString() ? 
-                `<p>This action was performed by an administrator.</p>` : 
-                ''
+              ${
+                user._id.toString() !== board.user.toString()
+                  ? `<p>This action was performed by an administrator.</p>`
+                  : ''
               }
               <p style="color: #666;">This is an automated notification. Please do not reply to this email.</p>
             </div>
-          `
+          `,
         });
       } catch (emailErr) {
         console.error('Failed to send email notification:', emailErr);
@@ -239,23 +261,26 @@ router.delete('/boards/:id', authenticateToken, async (req, res) => {
       }
     }
 
-    res.status(200).json({ message: "Board deleted" });
+    res.status(200).json({ message: 'Board deleted' });
   } catch (err) {
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
 // POST /boards/:id/archive - archive the current state of a board
 router.post('/boards/:id/archive', authenticateToken, async (req, res) => {
   try {
-    const board = await Board.findOne({ _id: req.params.id, user: req.user.userId });
+    const board = await Board.findOne({
+      _id: req.params.id,
+      user: req.user.userId,
+    });
     if (!board) return res.status(404).json({ message: 'Board not found' });
     // Create archive
     const archive = new BoardArchive({
       user: req.user.userId,
       boardId: board._id,
       name: board.name,
-      content: board.content
+      content: board.content,
     });
     await archive.save();
     res.status(201).json({ message: 'Board archived' });
@@ -282,7 +307,9 @@ router.post('/boards/:boardId/share', authenticateToken, async (req, res) => {
   const board = await Board.findById(boardId);
   if (!board) return res.status(404).json({ message: 'Board not found' });
   if (board.user.toString() !== req.user.userId) {
-    return res.status(403).json({ message: 'Only the board owner can create share links' });
+    return res
+      .status(403)
+      .json({ message: 'Only the board owner can create share links' });
   }
   // Calculate expiry
   let ms = expiresIn * 60000; // default minutes
@@ -316,27 +343,31 @@ router.get('/share/:token', async (req, res) => {
   try {
     const { token } = req.params;
     console.log('Share link verification request for token:', token);
-    
+
     const shareLink = await ShareLink.findOne({ token });
     if (!shareLink) {
       console.log('Share link not found for token:', token);
       return res.status(404).json({ message: 'Invalid or expired link' });
     }
-    
+
     if (shareLink.expiresAt < new Date()) {
       console.log('Share link expired for token:', token);
       await ShareLink.deleteOne({ _id: shareLink._id }); // Clean up expired
       return res.status(410).json({ message: 'Link expired' });
     }
-    
+
     // Return board info and permission
     const board = await Board.findById(shareLink.boardId);
     if (!board) {
       console.log('Board not found for share link:', shareLink.boardId);
       return res.status(404).json({ message: 'Board not found' });
     }
-    
-    console.log('Share link verified successfully:', { token, boardId: board._id, permission: shareLink.permission });
+
+    console.log('Share link verified successfully:', {
+      token,
+      boardId: board._id,
+      permission: shareLink.permission,
+    });
     res.json({
       boardId: board._id,
       name: board.name,
@@ -365,26 +396,18 @@ router.delete('/share/:token', authenticateToken, async (req, res) => {
     shareLink.createdBy.toString() !== req.user.userId &&
     board.user.toString() !== req.user.userId
   ) {
-    return res.status(403).json({ message: 'Not authorized to revoke this link' });
+    return res
+      .status(403)
+      .json({ message: 'Not authorized to revoke this link' });
   }
   await ShareLink.deleteOne({ _id: shareLink._id });
   res.json({ message: 'Share link revoked' });
 });
 
 // Multer setup for decor uploads
-const decorStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, '../../uploads/decors');
-    fs.mkdirSync(uploadPath, { recursive: true });
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
-  }
-});
+const { uploadToS3, getBucketForFileType } = require('../utils/s3');
 const decorUpload = multer({
-  storage: decorStorage,
+  storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
     if (
       file.mimetype === 'image/png' ||
@@ -397,7 +420,7 @@ const decorUpload = multer({
       cb(new Error('Only PNG, WebP, and JPEG images are allowed'));
     }
   },
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB max
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
 });
 
 // GET /api/decors - get all decors for the authenticated user
@@ -411,48 +434,83 @@ router.get('/decors', authenticateToken, async (req, res) => {
 });
 
 // POST /api/decors - upload a new decor image
-router.post('/decors', authenticateToken, decorUpload.single('image'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'No file uploaded' });
-  }
-  try {
-    // Enforce decor limit for Basic users
-    const User = require('../models/User');
-    const user = await User.findById(req.user.userId);
-    if (user && user.plan === 'Basic') {
-      const decorCount = await Decor.countDocuments({ user: user._id });
-      if (decorCount >= 2) {
-        return res.status(403).json({ message: 'Basic plan users can only upload up to 2 decor items.' });
-      }
+router.post(
+  '/decors',
+  authenticateToken,
+  decorUpload.single('image'),
+  async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
     }
-    const imageUrl = `/uploads/decors/${req.file.filename}`;
-    const decor = new Decor({
-      user: req.user.userId,
-      imageUrl,
-      originalFilename: req.file.originalname
-    });
-    await decor.save();
-    res.status(201).json(decor);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    try {
+      // Enforce decor limit for Basic users
+      const User = require('../models/User');
+      const user = await User.findById(req.user.userId);
+      if (user && user.plan === 'Basic') {
+        const decorCount = await Decor.countDocuments({ user: user._id });
+        if (decorCount >= 2) {
+          return res.status(403).json({
+            message: 'Basic plan users can only upload up to 2 decor items.',
+          });
+        }
+      }
+
+      const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${
+        req.file.originalname
+      }`;
+      const s3Url = await uploadToS3(
+        req.file.buffer,
+        filename,
+        getBucketForFileType('decor'),
+        req.file.mimetype
+      );
+
+      const decor = new Decor({
+        user: req.user.userId,
+        imageUrl: s3Url,
+        originalFilename: req.file.originalname,
+      });
+      await decor.save();
+      res.status(201).json(decor);
+    } catch (err) {
+      console.error('Decor upload error:', err);
+      res.status(500).json({ message: 'Failed to upload decor item' });
+    }
   }
-});
+);
 
 // DELETE /api/decors/:id - delete a decor image
 router.delete('/decors/:id', authenticateToken, async (req, res) => {
   try {
-    const decor = await Decor.findOne({ _id: req.params.id, user: req.user.userId });
-    if (!decor) return res.status(404).json({ message: 'Decor not found' });
-    // Remove file from disk
-    const filePath = path.join(__dirname, '../../', decor.imageUrl);
-    fs.unlink(filePath, (err) => {
-      // Ignore file not found errors
+    const decor = await Decor.findOne({
+      _id: req.params.id,
+      user: req.user.userId,
     });
-    await decor.deleteOne();
-    res.status(200).json({ message: 'Decor deleted' });
+    if (!decor) return res.status(404).json({ message: 'Decor not found' });
+
+    try {
+      // Delete from S3 if it's an S3 URL
+      if (decor.imageUrl.includes('amazonaws.com')) {
+        const s3Key = decor.imageUrl.split('/').pop();
+        await s3Client.send(
+          new DeleteObjectCommand({
+            Bucket: getBucketForFileType('decor'),
+            Key: s3Key,
+          })
+        );
+      }
+
+      await decor.deleteOne();
+      res.status(200).json({ message: 'Decor deleted' });
+    } catch (err) {
+      console.error('Error deleting decor:', err);
+      // Still delete from DB even if S3 delete fails
+      await decor.deleteOne();
+      res.status(200).json({ message: 'Decor deleted (file cleanup failed)' });
+    }
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-module.exports = router; 
+module.exports = router;

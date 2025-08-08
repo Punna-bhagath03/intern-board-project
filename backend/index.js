@@ -20,19 +20,149 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// CORS middleware at the very top for all routes and preflight
+// Check required environment variables
+const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET'];
+const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+  console.error(
+    '❌ Missing required environment variables:',
+    missingEnvVars.join(', ')
+  );
+  process.exit(1);
+}
+
+// MongoDB connection options
+const mongoOptions = {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+};
+
+// Connect to MongoDB
+console.log('🔍 Connecting to MongoDB...');
+mongoose
+  .connect(process.env.MONGODB_URI, mongoOptions)
+  .then(() => {
+    console.log('✅ MongoDB connected successfully');
+  })
+  .catch((err) => {
+    console.error('❌ MongoDB connection error:', err);
+    process.exit(1);
+  });
+
+// Basic middleware
+app.use(express.json({ limit: '20mb' }));
+app.use(compression());
+
+// CORS and security middleware setup
 app.use(
-  cors({
-    origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-share-token'],
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
+  helmet({
+    crossOriginResourcePolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginEmbedderPolicy: false,
   })
 );
-// Global handler for OPTIONS preflight requests
-app.options('*', cors());
+
+app.use(
+  cors({
+    origin: [
+      process.env.CORS_ORIGIN,
+      'http://intern-board-frontend.s3-website.eu-north-1.amazonaws.com',
+      'https://intern-board-frontend.s3-website.eu-north-1.amazonaws.com',
+    ].filter(Boolean), // Removes any undefined/null values
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-share-token'],
+    credentials: true,
+    optionsSuccessStatus: 200,
+    preflightContinue: false,
+  })
+);
+
+// Handle OPTIONS preflight requests
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', process.env.CORS_ORIGIN);
+  res.header(
+    'Access-Control-Allow-Methods',
+    'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+  );
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, x-share-token'
+  );
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400');
+  res.status(200).end();
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  if (err.message === 'CORS Error') {
+    return res.status(403).json({
+      error: 'CORS Error',
+      message: 'Origin not allowed',
+    });
+  }
+  res.status(500).json({
+    error: 'Internal Server Error',
+    message: err.message,
+  });
+});
+
+// Start server
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🌍 Access via http://localhost:${PORT}`);
+  console.log(`📝 Environment: ${process.env.NODE_ENV}`);
+});
+
+// CORS configuration - Place this before any routes
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (
+    origin ===
+      'http://intern-board-frontend.s3-website.eu-north-1.amazonaws.com' ||
+    origin === 'http://localhost:5173'
+  ) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+  );
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, x-share-token'
+  );
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Max-Age', '86400');
+    res.status(204).end();
+    return;
+  }
+  next();
+});
+
+// Handle preflight requests for all routes
+app.options('*', (req, res) => {
+  if (allowedOrigins.includes(req.headers.origin)) {
+    res.header('Access-Control-Allow-Origin', req.headers.origin);
+  }
+  res.header(
+    'Access-Control-Allow-Methods',
+    'GET,PUT,POST,DELETE,OPTIONS,PATCH'
+  );
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, x-share-token'
+  );
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.status(200).send();
+});
 
 //  Middleware
 app.use(express.json({ limit: '20mb' }));
@@ -40,12 +170,14 @@ app.use(helmet());
 app.use(compression());
 // Only enable rate limiting in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    standardHeaders: true,
-    legacyHeaders: false,
-  }));
+  app.use(
+    rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 100, // limit each IP to 100 requests per windowMs
+      standardHeaders: true,
+      legacyHeaders: false,
+    })
+  );
 }
 
 //  Health check route
@@ -54,7 +186,7 @@ app.get('/', (req, res) => {
 });
 
 //  Register route
-app.post('/register', async (req, res) => {
+app.post('/api/register', async (req, res) => {
   const { username, email, password } = req.body;
 
   if (!username || !email || !password)
@@ -63,9 +195,11 @@ app.post('/register', async (req, res) => {
       .json({ message: 'Username, email, and password are required.' });
 
   try {
-    const existingUser = await User.findOne({ $or: [ { username }, { email } ] });
+    const existingUser = await User.findOne({ $or: [{ username }, { email }] });
     if (existingUser)
-      return res.status(409).json({ message: 'Username or email already exists.' });
+      return res
+        .status(409)
+        .json({ message: 'Username or email already exists.' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     // Set role to 'admin' for username 'bhagath', else default
@@ -80,7 +214,24 @@ app.post('/register', async (req, res) => {
     });
     await defaultBoard.save();
 
-    res.status(201).json({ message: 'User registered successfully.' });
+    // Create JWT token
+    const token = jwt.sign(
+      { userId: user._id, username: user.username, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({
+      message: 'User registered successfully.',
+      token,
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+      },
+      defaultBoardId: defaultBoard._id,
+    });
   } catch (err) {
     console.error('❌ Registration error:', err);
     res.status(500).json({ message: 'Server error.' });
@@ -98,11 +249,13 @@ app.post('/login', async (req, res) => {
 
   try {
     const user = await User.findOne(email ? { email } : { username });
-    if (!user)
-      return res.status(401).json({ message: 'Invalid credentials' });
+    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
     // If bhagath logs in and is not admin, update role to admin
-    if ((username === 'bhagath' || user.username === 'bhagath') && user.role !== 'admin') {
+    if (
+      (username === 'bhagath' || user.username === 'bhagath') &&
+      user.role !== 'admin'
+    ) {
       user.role = 'admin';
       await user.save();
     }
@@ -113,9 +266,10 @@ app.post('/login', async (req, res) => {
 
     // Record last login and login history
     const loginDate = new Date();
-    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || '';
+    const ip =
+      req.headers['x-forwarded-for'] || req.connection.remoteAddress || '';
     const userAgent = req.headers['user-agent'] || '';
-    
+
     user.lastLogin = loginDate;
     user.loginHistory = user.loginHistory || [];
     user.loginHistory.push({
@@ -124,7 +278,8 @@ app.post('/login', async (req, res) => {
       userAgent,
     });
     // Optionally limit history length
-    if (user.loginHistory.length > 20) user.loginHistory = user.loginHistory.slice(-20);
+    if (user.loginHistory.length > 20)
+      user.loginHistory = user.loginHistory.slice(-20);
     await user.save();
 
     // Send login notification email if user has email
@@ -146,7 +301,7 @@ app.post('/login', async (req, res) => {
               <p>If this wasn't you, please change your password immediately.</p>
               <p style="color: #666;">This is an automated notification. Please do not reply to this email.</p>
             </div>
-          `
+          `,
         });
       } catch (emailErr) {
         console.error('Failed to send login notification email:', emailErr);
@@ -154,14 +309,31 @@ app.post('/login', async (req, res) => {
       }
     }
 
-    const token = jwt.sign({ userId: user._id, tokenVersion: user.tokenVersion || 0 }, process.env.JWT_SECRET, {
-      expiresIn: '1d',
-    });
+    const token = jwt.sign(
+      { userId: user._id, tokenVersion: user.tokenVersion || 0 },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: '1d',
+      }
+    );
 
-    const board = await Board.findOne({ user: user._id }).sort({ createdAt: 1 });
+    const board = await Board.findOne({ user: user._id }).sort({
+      createdAt: 1,
+    });
     const defaultBoardId = board ? board._id : null;
 
-    res.status(200).json({ token, defaultBoardId, user: { _id: user._id, username: user.username, email: user.email, role: user.role, avatar: user.avatar, status: user.status } });
+    res.status(200).json({
+      token,
+      defaultBoardId,
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        avatar: user.avatar,
+        status: user.status,
+      },
+    });
   } catch (err) {
     console.error(' Login error:', err);
     res.status(500).json({ message: 'Server error' });
@@ -174,19 +346,21 @@ async function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     if (!token) return res.status(401).json({ message: 'No token provided' });
-    
+
     jwt.verify(token, process.env.JWT_SECRET, async (err, payload) => {
       if (err) {
         console.error('JWT verification error:', err);
         return res.status(403).json({ message: 'Invalid token' });
       }
-      
+
       try {
         // Check tokenVersion
         const user = await User.findById(payload.userId);
         if (!user) return res.status(401).json({ message: 'User not found' });
         if ((user.tokenVersion || 0) !== (payload.tokenVersion || 0)) {
-          return res.status(401).json({ message: 'Session expired, please log in again.' });
+          return res
+            .status(401)
+            .json({ message: 'Session expired, please log in again.' });
         }
         req.user = payload;
         next();
@@ -206,7 +380,13 @@ app.get('/api/users/me', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json({ _id: user._id, username: user.username, avatar: user.avatar, role: user.role, plan: user.plan });
+    res.json({
+      _id: user._id,
+      username: user.username,
+      avatar: user.avatar,
+      role: user.role,
+      plan: user.plan,
+    });
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch user' });
   }
@@ -216,26 +396,14 @@ app.get('/api/users/me', authenticateToken, async (req, res) => {
 app.use('/api', boardRoutes);
 app.use('/api/admin', adminRouter);
 
-// Avatar handling is now done with base64 data stored in database
-
-// Ensure uploads/backgrounds directory exists
-const backgroundsDir = path.join(__dirname, '../uploads/backgrounds');
-if (!fs.existsSync(backgroundsDir)) {
-  fs.mkdirSync(backgroundsDir, { recursive: true });
-}
+// All file uploads are now handled through S3
 
 // Multer setup for background uploads
-const backgroundStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, backgroundsDir);
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
-  },
-});
+const { uploadToS3, getBucketForFileType } = require('./utils/s3');
+
+const storage = multer.memoryStorage();
 const backgroundUpload = multer({
-  storage: backgroundStorage,
+  storage: storage,
   fileFilter: (req, file, cb) => {
     if (
       file.mimetype === 'image/png' ||
@@ -252,32 +420,41 @@ const backgroundUpload = multer({
 });
 
 // POST /api/backgrounds - upload a new background image
-app.post('/api/backgrounds', backgroundUpload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'No file uploaded' });
-  }
-  const imageUrl = `/uploads/backgrounds/${req.file.filename}`;
-  res.status(201).json({ url: imageUrl });
-});
+app.post(
+  '/api/backgrounds',
+  backgroundUpload.single('image'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
 
-// Serve static files for decor uploads
-app.use('/uploads/decors', express.static(path.join(__dirname, '../uploads/decors')));
+      const filename = `${Date.now()}-${Math.round(
+        Math.random() * 1e9
+      )}${path.extname(req.file.originalname)}`;
+      const s3Url = await uploadToS3(
+        req.file.buffer,
+        filename,
+        getBucketForFileType('background'),
+        req.file.mimetype
+      );
 
-// Serve /uploads with CORS headers ONLY for this route
-app.use('/uploads', express.static(
-  path.join(__dirname, '../uploads'),
-  {
-    setHeaders: (res, filePath) => {
-      res.setHeader('Access-Control-Allow-Origin', process.env.CLIENT_ORIGIN || 'http://localhost:5173');
-      res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+      res.status(201).json({ url: s3Url });
+    } catch (error) {
+      console.error('Background upload error:', error);
+      res.status(500).json({ message: 'Failed to upload background' });
     }
   }
-));
+);
+
+// All uploads are now handled through S3
 
 // Explicit OPTIONS handler for /uploads/*
 app.options('/uploads/*', (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', process.env.CLIENT_ORIGIN || 'http://localhost:5173');
+  res.setHeader(
+    'Access-Control-Allow-Origin',
+    process.env.CLIENT_ORIGIN || 'http://localhost:5173'
+  );
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
   res.sendStatus(204);
@@ -290,7 +467,7 @@ app.get('/api/users/:id', async (req, res) => {
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({ message: 'Invalid user ID format' });
     }
-    
+
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json({ username: user.username, avatar: user.avatar });
@@ -308,8 +485,12 @@ app.patch('/api/users/:id', async (req, res) => {
 
   if (username) {
     // Check for unique username (case-insensitive, not current user)
-    const existing = await User.findOne({ username: { $regex: `^${username}$`, $options: 'i' }, _id: { $ne: userId } });
-    if (existing) return res.status(409).json({ message: 'Username already exists.' });
+    const existing = await User.findOne({
+      username: { $regex: `^${username}$`, $options: 'i' },
+      _id: { $ne: userId },
+    });
+    if (existing)
+      return res.status(409).json({ message: 'Username already exists.' });
     update.username = username;
   }
 
@@ -320,13 +501,20 @@ app.patch('/api/users/:id', async (req, res) => {
       return res.status(400).json({ message: 'Invalid email format.' });
     }
     // Check for unique email (case-insensitive, not current user)
-    const existing = await User.findOne({ email: { $regex: `^${email}$`, $options: 'i' }, _id: { $ne: userId } });
-    if (existing) return res.status(409).json({ message: 'Email already exists.' });
+    const existing = await User.findOne({
+      email: { $regex: `^${email}$`, $options: 'i' },
+      _id: { $ne: userId },
+    });
+    if (existing)
+      return res.status(409).json({ message: 'Email already exists.' });
     update.email = email;
   }
 
   if (password) {
-    if (password.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters.' });
+    if (password.length < 6)
+      return res
+        .status(400)
+        .json({ message: 'Password must be at least 6 characters.' });
     update.password = await bcrypt.hash(password, 10);
   }
 
@@ -358,7 +546,9 @@ app.put('/api/users/:id/plan', authenticateToken, async (req, res) => {
 
   // Verify user is updating their own plan
   if (userId !== req.user.userId) {
-    return res.status(403).json({ message: 'You can only update your own plan' });
+    return res
+      .status(403)
+      .json({ message: 'You can only update your own plan' });
   }
 
   try {
@@ -391,7 +581,7 @@ app.put('/api/users/:id/plan', authenticateToken, async (req, res) => {
               <p>You now have access to all features included in the ${plan} plan.</p>
               <p style="color: #666;">This is an automated notification. Please do not reply to this email.</p>
             </div>
-          `
+          `,
         });
       } catch (emailErr) {
         console.error('Failed to send plan update email:', emailErr);
@@ -405,8 +595,8 @@ app.put('/api/users/:id/plan', authenticateToken, async (req, res) => {
         username: user.username,
         email: user.email,
         plan: user.plan,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
   } catch (err) {
     console.error('Error updating plan:', err);
@@ -428,15 +618,15 @@ app.use('*', (req, res) => {
 // MongoDB Connection
 console.log('🔍 Connecting to MongoDB...');
 
-// Check if MONGO_URL exists
-if (!process.env.MONGO_URL) {
-  console.error('❌ MONGO_URL not found in .env file!');
+// Check if MONGODB_URI exists
+if (!process.env.MONGODB_URI) {
+  console.error('❌ MONGODB_URI not found in .env file!');
   process.exit(1);
 }
 
 // Connect to MongoDB with fallback for development
 mongoose
-  .connect(process.env.MONGO_URL, {
+  .connect(process.env.MONGODB_URI, {
     serverSelectionTimeoutMS: 5000, // 5 second timeout
     socketTimeoutMS: 45000, // 45 second timeout
   })
@@ -448,8 +638,12 @@ mongoose
   })
   .catch((err) => {
     console.error('❌ MongoDB Atlas connection failed:', err.message);
-    console.log('💡 If you want to use local MongoDB for development, update your .env file:');
+    console.log(
+      '💡 If you want to use local MongoDB for development, update your .env file:'
+    );
     console.log('   MONGO_URL=mongodb://localhost:27017/intern-board');
-    console.log('💡 Or add your IP to MongoDB Atlas whitelist: https://cloud.mongodb.com');
+    console.log(
+      '💡 Or add your IP to MongoDB Atlas whitelist: https://cloud.mongodb.com'
+    );
     process.exit(1);
   });
