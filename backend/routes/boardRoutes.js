@@ -404,7 +404,7 @@ router.delete('/share/:token', authenticateToken, async (req, res) => {
   res.json({ message: 'Share link revoked' });
 });
 
-// Multer setup for decor uploads
+// Multer setup for decor uploads and board images
 const { uploadToS3, getBucketForFileType } = require('../utils/s3');
 const decorUpload = multer({
   storage: multer.memoryStorage(),
@@ -421,6 +421,24 @@ const decorUpload = multer({
     }
   },
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+});
+
+// Multer for general board images (elements)
+const boardImageUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    if (
+      file.mimetype === 'image/png' ||
+      file.mimetype === 'image/webp' ||
+      file.mimetype === 'image/jpeg' ||
+      file.mimetype === 'image/jpg'
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PNG, WebP, and JPEG images are allowed'));
+    }
+  },
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 // GET /api/decors - get all decors for the authenticated user
@@ -514,3 +532,34 @@ router.delete('/decors/:id', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
+
+// New route: POST /api/board-images - upload a board image to S3 and return its URL
+router.post(
+  '/board-images',
+  authenticateToken,
+  boardImageUpload.single('image'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${
+        req.file.originalname
+      }`;
+      const s3Url = await uploadToS3(
+        req.file.buffer,
+        filename,
+        getBucketForFileType('board'),
+        req.file.mimetype
+      );
+
+      return res.status(201).json({ url: s3Url });
+    } catch (err) {
+      console.error('Board image upload error:', err);
+      return res
+        .status(500)
+        .json({ message: 'Failed to upload board image', error: err.message });
+    }
+  }
+);

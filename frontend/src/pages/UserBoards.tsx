@@ -82,8 +82,8 @@ const UserBoards: React.FC = () => {
     }
   };
 
-  // Helper to handle avatar display - shows default profile photo or base64 data
-  const getAvatarDisplay = (avatar: string | null | undefined, username: string): { type: 'default' | 'base64', content: string } => {
+  // Helper to handle avatar display - supports default, base64 and URL
+  const getAvatarDisplay = (avatar: string | null | undefined, username: string): { type: 'default' | 'base64' | 'url', content: string } => {
     if (!avatar || avatar === '') {
       // Return default profile photo with initial letter
       return {
@@ -99,8 +99,16 @@ const UserBoards: React.FC = () => {
         content: avatar
       };
     }
-    
-    // Fallback to default if it's an old file path
+
+    // If it's a URL
+    if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+      return {
+        type: 'url',
+        content: avatar
+      };
+    }
+
+    // Fallback to default
     return {
       type: 'default',
       content: username ? username.charAt(0).toUpperCase() : '?'
@@ -153,7 +161,7 @@ const UserBoards: React.FC = () => {
                     <div className="w-8 h-8 rounded-full bg-gray-700/50 flex items-center justify-center overflow-hidden">
                       {(() => {
                         const avatarDisplay = getAvatarDisplay(user.avatar, user.username);
-                        if (avatarDisplay.type === 'base64') {
+                        if (avatarDisplay.type === 'base64' || avatarDisplay.type === 'url') {
                           return <img src={avatarDisplay.content} alt="" className="w-full h-full object-cover" />;
                         } else {
                           return <div className="text-gray-400 text-sm font-bold">{avatarDisplay.content}</div>;
