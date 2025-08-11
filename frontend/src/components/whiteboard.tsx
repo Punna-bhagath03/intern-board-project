@@ -24,11 +24,11 @@ import {
 import { useNotification } from '../NotificationContext';
 import { getCurrentUser } from '../api';
 
-// Helper to handle avatar display - shows default profile photo or base64 data
+// Helper to handle avatar display - supports default, base64, and URL
 const getAvatarDisplay = (
   avatar: string | null | undefined,
   username: string
-): { type: 'default' | 'base64'; content: string } => {
+): { type: 'default' | 'base64' | 'url'; content: string } => {
   if (!avatar || avatar === '') {
     // Return default profile photo with initial letter
     return {
@@ -45,7 +45,15 @@ const getAvatarDisplay = (
     };
   }
 
-  // Fallback to default if it's an old file path
+  // If it's a URL, use it
+  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+    return {
+      type: 'url',
+      content: avatar,
+    };
+  }
+
+  // Fallback to default if unrecognized format
   return {
     type: 'default',
     content: username ? username.charAt(0).toUpperCase() : '?',
@@ -219,7 +227,7 @@ function SettingsModal({
             <label className="block text-sm font-semibold mb-1">Avatar</label>
             <div className="flex items-center gap-4">
               {settingsAvatarPreview ||
-              (userAvatar && userAvatar.startsWith('data:image/')) ? (
+              (userAvatar && (userAvatar.startsWith('data:image/') || userAvatar.startsWith('http'))) ? (
                 <div className="relative">
                   <img
                     src={settingsAvatarPreview || userAvatar || ''}
@@ -233,6 +241,7 @@ function SettingsModal({
                     onClick={() => {
                       setSettingsAvatarPreview(null);
                       setSettingsAvatar(null);
+                      setUploadedAvatarUrl(null);
                       setUserAvatar(null); // Immediately update profile icon
                       setSettingsChanged(true);
                     }}
@@ -406,6 +415,7 @@ const Whiteboard: React.FC = () => {
   const [settingsUsername, setSettingsUsername] = useState(username);
   const [settingsPassword, setSettingsPassword] = useState('');
   const [settingsAvatar, setSettingsAvatar] = useState<string | null>(null);
+  const [uploadedAvatarUrl, setUploadedAvatarUrl] = useState<string | null>(null);
 
   const [settingsAvatarPreview, setSettingsAvatarPreview] = useState<
     string | null
@@ -746,16 +756,21 @@ const Whiteboard: React.FC = () => {
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64String = reader.result as string;
-      setBackgroundImage(base64String);
-      showNotification(
-        'Background image uploaded successfully - Click Save to persist changes',
-        'success'
-      );
-    };
-    reader.readAsDataURL(file);
+    try {
+      const form = new FormData();
+      form.append('image', file);
+      const res = await api.post('/api/backgrounds', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (res.data?.url) {
+        setBackgroundImage(res.data.url);
+        showNotification('Background uploaded to cloud. Click Save to persist.', 'success');
+      } else {
+        showNotification('Failed to upload background', 'error');
+      }
+    } catch (err) {
+      showNotification('Failed to upload background', 'error');
+    }
     if (backgroundInputRef.current) backgroundInputRef.current.value = '';
   };
 
@@ -779,22 +794,22 @@ const Whiteboard: React.FC = () => {
             continue;
           }
 
-          const base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
+          // Upload to S3 via backend
+          const form = new FormData();
+          form.append('image', file);
+          const uploadRes = await api.post('/api/board-images', form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
           });
 
-          // Validate base64 string
-          if (!base64.startsWith('data:image/')) {
-            showNotification('Failed to process image', 'error');
+          const imageUrl = uploadRes.data?.url as string | undefined;
+          if (!imageUrl) {
+            showNotification('Failed to upload image', 'error');
             continue;
           }
 
           newImages.push({
             id: Date.now() + Math.random(),
-            src: base64,
+            src: imageUrl,
             x: 50,
             y: 50,
             width: 100,
@@ -806,7 +821,7 @@ const Whiteboard: React.FC = () => {
             'success'
           );
         } catch (error) {
-          showNotification('Failed to process image', 'error');
+          showNotification('Failed to upload image', 'error');
         }
       }
 
@@ -1023,8 +1038,10 @@ const Whiteboard: React.FC = () => {
       if (settingsPassword) updateData.password = settingsPassword;
 
       // Handle avatar update
-      if (settingsAvatarPreview) {
-        updateData.avatar = settingsAvatarPreview;
+      if (uploadedAvatarUrl) {
+        updateData.avatarUrl = uploadedAvatarUrl;
+      } else if (settingsAvatarPreview) {
+        updateData.avatar = settingsAvatarPreview; // legacy base64 fallback
       } else if (!settingsAvatar && !settingsAvatarPreview) {
         updateData.removeAvatar = 'true';
       }
@@ -1050,10 +1067,12 @@ const Whiteboard: React.FC = () => {
         if (res.data.avatar) {
           setUserAvatar(res.data.avatar);
           setSettingsAvatar(res.data.avatar);
+          setUploadedAvatarUrl(null);
           localStorage.setItem('avatar', res.data.avatar);
         } else {
           setUserAvatar(null);
           setSettingsAvatar(null);
+          setUploadedAvatarUrl(null);
           localStorage.removeItem('avatar');
         }
       }
@@ -1067,7 +1086,7 @@ const Whiteboard: React.FC = () => {
   };
 
   // Avatar file change handler
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       // Validate file type
@@ -1086,12 +1105,26 @@ const Whiteboard: React.FC = () => {
       reader.onloadend = () => {
         const base64String = reader.result as string;
         setSettingsAvatarPreview(base64String);
-
-        setSettingsAvatar(base64String);
-        setUserAvatar(base64String);
-        setSettingsChanged(true);
       };
       reader.readAsDataURL(file);
+
+      try {
+        const form = new FormData();
+        form.append('image', file);
+        const res = await api.post('/api/avatars', form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        if (res.data?.url) {
+          setUploadedAvatarUrl(res.data.url);
+          setSettingsAvatar(res.data.url);
+          setUserAvatar(res.data.url);
+          setSettingsChanged(true);
+        } else {
+          showNotification('Failed to upload avatar', 'error');
+        }
+      } catch (err) {
+        showNotification('Failed to upload avatar', 'error');
+      }
     }
   };
 
@@ -1245,7 +1278,7 @@ const Whiteboard: React.FC = () => {
           >
             {(() => {
               const avatarDisplay = getAvatarDisplay(userAvatar, username);
-              if (avatarDisplay.type === 'base64') {
+              if (avatarDisplay.type === 'base64' || avatarDisplay.type === 'url') {
                 return (
                   <img
                     src={avatarDisplay.content}
@@ -1531,6 +1564,7 @@ const Whiteboard: React.FC = () => {
                         <img
                           src={backgroundImage}
                           alt="Background"
+                          crossOrigin="anonymous"
                           className="absolute top-0 left-0 w-full h-full object-fill z-0 rounded-lg"
                           style={{
                             objectFit: 'fill',
@@ -1694,6 +1728,7 @@ const Whiteboard: React.FC = () => {
                           <img
                             src={frame.frameSrc}
                             alt="Frame"
+                            crossOrigin="anonymous"
                             style={{
                               position: 'absolute',
                               top: 0,
@@ -1963,6 +1998,7 @@ const Whiteboard: React.FC = () => {
                             <img
                               src={decor.src}
                               alt={decor.name}
+                              crossOrigin="anonymous"
                               className="max-w-full max-h-full object-contain"
                             />
                           </button>
@@ -1973,22 +2009,13 @@ const Whiteboard: React.FC = () => {
                             <button
                               className="w-12 h-12 bg-white border rounded flex items-center justify-center shadow hover:shadow-lg transition"
                               title={decor.originalFilename}
-                              onClick={() =>
-                                handleAddDecorToCanvas(
-                                  `${
-                                    import.meta.env.VITE_API_URL ||
-                                    'http://localhost:5001'
-                                  }${decor.imageUrl}`
-                                )
-                              }
+                              onClick={() => handleAddDecorToCanvas(decor.imageUrl)}
                               style={{ padding: 2 }}
                             >
                               <img
-                                src={`${
-                                  import.meta.env.VITE_API_URL ||
-                                  'http://localhost:5001'
-                                }${decor.imageUrl}`}
+                                src={decor.imageUrl}
                                 alt={decor.originalFilename}
+                                crossOrigin="anonymous"
                                 className="max-w-full max-h-full object-contain"
                               />
                             </button>

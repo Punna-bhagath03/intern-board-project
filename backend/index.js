@@ -16,6 +16,7 @@ const multer = require('multer');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const { sendMail } = require('./utils/mailer');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -40,12 +41,17 @@ const mongoOptions = {
   socketTimeoutMS: 45000,
 };
 
-// Connect to MongoDB
+// Connect to MongoDB and start server after successful connection
 console.log('🔍 Connecting to MongoDB...');
 mongoose
   .connect(process.env.MONGODB_URI, mongoOptions)
   .then(() => {
     console.log('✅ MongoDB connected successfully');
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🌍 Access via http://localhost:${PORT}`);
+      console.log(`📝 Environment: ${process.env.NODE_ENV}`);
+    });
   })
   .catch((err) => {
     console.error('❌ MongoDB connection error:', err);
@@ -57,6 +63,13 @@ app.use(express.json({ limit: '20mb' }));
 app.use(compression());
 
 // CORS and security middleware setup
+const allowedOrigins = [
+  process.env.CORS_ORIGIN,
+  'http://intern-board-frontend.s3-website.eu-north-1.amazonaws.com',
+  'https://intern-board-frontend.s3-website.eu-north-1.amazonaws.com',
+  'http://localhost:5173',
+].filter(Boolean);
+
 app.use(
   helmet({
     crossOriginResourcePolicy: false,
@@ -67,11 +80,12 @@ app.use(
 
 app.use(
   cors({
-    origin: [
-      process.env.CORS_ORIGIN,
-      'http://intern-board-frontend.s3-website.eu-north-1.amazonaws.com',
-      'https://intern-board-frontend.s3-website.eu-north-1.amazonaws.com',
-    ].filter(Boolean), // Removes any undefined/null values
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('CORS Error'));
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-share-token'],
     credentials: true,
@@ -80,100 +94,19 @@ app.use(
   })
 );
 
-// Handle OPTIONS preflight requests
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', process.env.CORS_ORIGIN);
-  res.header(
-    'Access-Control-Allow-Methods',
-    'GET, POST, PUT, DELETE, OPTIONS, PATCH'
-  );
-  res.header(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, x-share-token'
-  );
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Max-Age', '86400');
-  res.status(200).end();
-});
+// Note: Global error handler is defined near the end of this file
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  if (err.message === 'CORS Error') {
-    return res.status(403).json({
-      error: 'CORS Error',
-      message: 'Origin not allowed',
-    });
-  }
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: err.message,
-  });
-});
-
-// Start server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🌍 Access via http://localhost:${PORT}`);
-  console.log(`📝 Environment: ${process.env.NODE_ENV}`);
-});
-
-// CORS configuration - Place this before any routes
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (
-    origin ===
-      'http://intern-board-frontend.s3-website.eu-north-1.amazonaws.com' ||
-    origin === 'http://localhost:5173'
-  ) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader(
-    'Access-Control-Allow-Methods',
-    'GET, POST, PUT, DELETE, OPTIONS, PATCH'
-  );
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, x-share-token'
-  );
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Max-Age', '86400');
-    res.status(204).end();
-    return;
-  }
-  next();
-});
-
-// Handle preflight requests for all routes
-app.options('*', (req, res) => {
-  if (allowedOrigins.includes(req.headers.origin)) {
-    res.header('Access-Control-Allow-Origin', req.headers.origin);
-  }
-  res.header(
-    'Access-Control-Allow-Methods',
-    'GET,PUT,POST,DELETE,OPTIONS,PATCH'
-  );
-  res.header(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, x-share-token'
-  );
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.status(200).send();
-});
+// Note: CORS preflight is handled by the cors middleware above
 
 //  Middleware
 app.use(express.json({ limit: '20mb' }));
-app.use(helmet());
 app.use(compression());
 // Only enable rate limiting in production
 if (process.env.NODE_ENV === 'production') {
   app.use(
     rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 100, // limit each IP to 100 requests per windowMs
+      windowMs: 15 * 60 * 1000,
+      max: 100,
       standardHeaders: true,
       legacyHeaders: false,
     })
@@ -422,6 +355,7 @@ const backgroundUpload = multer({
 // POST /api/backgrounds - upload a new background image
 app.post(
   '/api/backgrounds',
+  authenticateToken,
   backgroundUpload.single('image'),
   async (req, res) => {
     try {
@@ -446,6 +380,46 @@ app.post(
     }
   }
 );
+
+// Multer for avatar uploads
+const avatarUpload = multer({
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    if (
+      file.mimetype === 'image/png' ||
+      file.mimetype === 'image/webp' ||
+      file.mimetype === 'image/jpeg' ||
+      file.mimetype === 'image/jpg'
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PNG, WebP, and JPEG images are allowed'));
+    }
+  },
+  limits: { fileSize: 3 * 1024 * 1024 },
+});
+
+// POST /api/avatars - upload avatar image to S3 and return URL
+app.post('/api/avatars', authenticateToken, avatarUpload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+    const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(
+      req.file.originalname
+    )}`;
+    const s3Url = await uploadToS3(
+      req.file.buffer,
+      filename,
+      getBucketForFileType('avatar'),
+      req.file.mimetype
+    );
+    return res.status(201).json({ url: s3Url });
+  } catch (error) {
+    console.error('Avatar upload error:', error);
+    return res.status(500).json({ message: 'Failed to upload avatar' });
+  }
+});
 
 // All uploads are now handled through S3
 
@@ -478,10 +452,25 @@ app.get('/api/users/:id', async (req, res) => {
 });
 
 // PATCH /api/users/:id - update username, password, email, avatar
-app.patch('/api/users/:id', async (req, res) => {
+app.patch('/api/users/:id', authenticateToken, async (req, res) => {
   const { username, password, email } = req.body;
   const userId = req.params.id;
   const update = {};
+
+  try {
+    // Only allow self-update or admin
+    const isSelf = req.user.userId === userId;
+    let isAdmin = false;
+    if (!isSelf) {
+      const requestingUser = await User.findById(req.user.userId);
+      isAdmin = requestingUser && requestingUser.role === 'admin';
+      if (!isAdmin) {
+        return res.status(403).json({ message: 'Not authorized to update this user' });
+      }
+    }
+  } catch (authErr) {
+    return res.status(500).json({ message: 'Authorization check failed' });
+  }
 
   if (username) {
     // Check for unique username (case-insensitive, not current user)
@@ -518,7 +507,9 @@ app.patch('/api/users/:id', async (req, res) => {
     update.password = await bcrypt.hash(password, 10);
   }
 
-  if (req.body.avatar) {
+  if (req.body.avatarUrl) {
+    update.avatar = req.body.avatarUrl;
+  } else if (req.body.avatar) {
     // Store base64 data directly in the database
     update.avatar = req.body.avatar;
   } else if (req.body.removeAvatar === 'true') {
@@ -615,35 +606,4 @@ app.use('*', (req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-// MongoDB Connection
-console.log('🔍 Connecting to MongoDB...');
-
-// Check if MONGODB_URI exists
-if (!process.env.MONGODB_URI) {
-  console.error('❌ MONGODB_URI not found in .env file!');
-  process.exit(1);
-}
-
-// Connect to MongoDB with fallback for development
-mongoose
-  .connect(process.env.MONGODB_URI, {
-    serverSelectionTimeoutMS: 5000, // 5 second timeout
-    socketTimeoutMS: 45000, // 45 second timeout
-  })
-  .then(() => {
-    console.log('✅ Connected to MongoDB Atlas');
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error('❌ MongoDB Atlas connection failed:', err.message);
-    console.log(
-      '💡 If you want to use local MongoDB for development, update your .env file:'
-    );
-    console.log('   MONGO_URL=mongodb://localhost:27017/intern-board');
-    console.log(
-      '💡 Or add your IP to MongoDB Atlas whitelist: https://cloud.mongodb.com'
-    );
-    process.exit(1);
-  });
+// Note: MongoDB connection and server start are handled at the top of this file
