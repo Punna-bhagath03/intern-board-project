@@ -12,13 +12,20 @@ const s3Client = new S3Client({
 
 async function uploadToS3(buffer, fileName, bucketName, mimeType) {
   try {
-    // Optimize image before upload
-    const optimizedBuffer = await sharp(buffer)
-      .resize(2000, 2000, {
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .toBuffer();
+    // Optimize image before upload. If optimization fails (e.g., missing libvips),
+    // gracefully fall back to the original buffer to avoid breaking uploads.
+    let optimizedBuffer = buffer;
+    try {
+      optimizedBuffer = await sharp(buffer)
+        .resize(2000, 2000, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .toBuffer();
+    } catch (optErr) {
+      console.warn('Image optimization failed, uploading original buffer:', optErr?.message);
+      optimizedBuffer = buffer;
+    }
 
     const upload = new Upload({
       client: s3Client,

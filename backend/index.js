@@ -3,7 +3,20 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+// Load .env from project if present
 require('dotenv').config();
+// Additionally load global env from ~/.intern-board.env if available (used in EC2 PM2)
+try {
+  const fs = require('fs');
+  const path = require('path');
+  const os = require('os');
+  const homeEnvPath = path.join(os.homedir(), '.intern-board.env');
+  if (fs.existsSync(homeEnvPath)) {
+    require('dotenv').config({ path: homeEnvPath, override: true });
+  }
+} catch (e) {
+  console.warn('Could not load ~/.intern-board.env:', e?.message);
+}
 
 const boardRoutes = require('./routes/boardRoutes');
 const { router: adminRouter } = require('./routes/admin');
