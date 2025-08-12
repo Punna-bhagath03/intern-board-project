@@ -238,10 +238,9 @@ function SettingsModal({
                     type="button"
                     className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center shadow border-2 border-white"
                     title="Remove photo"
-                    onClick={() => {
+                  onClick={() => {
                       setSettingsAvatarPreview(null);
                       setSettingsAvatar(null);
-                      setUploadedAvatarUrl(null);
                       setUserAvatar(null); // Immediately update profile icon
                       setSettingsChanged(true);
                     }}

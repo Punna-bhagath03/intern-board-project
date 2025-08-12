@@ -12,7 +12,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { showNotification } = useNotification();
+  const { showNotification: _showNotification } = useNotification();
 
   useEffect(() => {
     // Check if already logged in
