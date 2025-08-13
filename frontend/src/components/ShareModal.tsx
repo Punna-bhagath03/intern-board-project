@@ -70,7 +70,10 @@ const ShareModal: React.FC<ShareModalProps> = ({ boardId, open, onClose, userPla
       });
 
       if (res.data.token) {
-        const shareUrl = new URL('/join', window.location.origin);
+        // Build share link pointing to the frontend app (not the API)
+        const base =
+          (import.meta as any).env?.VITE_FRONTEND_URL || window.location.origin;
+        const shareUrl = new URL('/join', base);
         shareUrl.searchParams.set('token', res.data.token);
         setShareLink(shareUrl.toString());
       } else {
@@ -83,14 +86,27 @@ const ShareModal: React.FC<ShareModalProps> = ({ boardId, open, onClose, userPla
   };
 
   const handleCopy = async () => {
-    if (shareLink) {
-      try {
-        await navigator.clipboard.writeText(shareLink);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      } catch (error: unknown) {
-        setError('Failed to copy link to clipboard');
+    if (!shareLink) return;
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (error: unknown) {
+      // Fallback: select the input and prompt user to copy
+      const input = document.getElementById('share-link-input') as HTMLInputElement | null;
+      if (input) {
+        input.focus();
+        input.select();
+        try {
+          const ok = document.execCommand('copy');
+          if (ok) {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+            return;
+          }
+        } catch {}
       }
+      setError('Copy failed. Select and copy the link manually.');
     }
   };
 
@@ -152,6 +168,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ boardId, open, onClose, userPla
             <label className="block font-semibold mb-1">Share Link</label>
             <div className="flex gap-2">
               <input
+                id="share-link-input"
                 type="text"
                 className="flex-1 border rounded px-3 py-2 bg-gray-100"
                 value={shareLink}

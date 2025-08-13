@@ -27,11 +27,10 @@ const JoinBoard: React.FC = () => {
     const jwt = localStorage.getItem('token');
     
     if (!jwt) {
-      // Not logged in, store intended path and redirect to login
+      // Not logged in → store path and send to login; allow signup path to honor same redirect
       const currentPath = location.pathname + location.search;
       localStorage.setItem('auth-redirect', currentPath);
-      console.log('User not logged in, redirecting to login with path:', currentPath);
-      navigate('/login');
+      navigate(`/login?redirect=${encodeURIComponent(currentPath)}`);
       return;
     }
 
@@ -51,6 +50,7 @@ const JoinBoard: React.FC = () => {
       } catch (error: unknown) {
         console.error('Failed to join board:', error);
         setError('Failed to join board. Please try again.');
+        setLoading(false);
       }
     };
 

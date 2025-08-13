@@ -130,6 +130,10 @@ if (process.env.NODE_ENV === 'production') {
 app.get('/', (req, res) => {
   res.send('✅ Backend is running');
 });
+// Standard health endpoint for load balancers/monitors
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
 
 //  Register route
 app.post('/api/register', async (req, res) => {

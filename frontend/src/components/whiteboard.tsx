@@ -1150,6 +1150,7 @@ const Whiteboard: React.FC = () => {
 
   // Determine if the current user is the owner
   const isOwner = selectedBoard && selectedBoard.user === userId;
+  const canEdit = isOwner || sharePermission === 'edit';
 
   // Removed unused owner username state variables
 
@@ -1170,7 +1171,10 @@ const Whiteboard: React.FC = () => {
     setDecorLoading(true);
     try {
       const res = await api.post('/api/decors', formData, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        },
       });
       setDecors((prev) => [...prev, res.data]);
     } catch (err) {
@@ -1357,112 +1361,115 @@ const Whiteboard: React.FC = () => {
         </div>
       ) : selectedBoard ? (
         <>
-          {/* Removed duplicate save button - only sidebar save button remains */}
-          {/* Board List and Create: only for owner, not for share links */}
-          {isOwner && sharePermission !== 'view' && (
+          {/* Controls strip */}
+          {canEdit && (
             <div className="w-full px-8 py-4">
               <div className="flex items-center gap-4 mb-4">
-                <span className="text-blue-700 font-semibold">Boards:</span>
-                <div className="flex flex-wrap gap-2">
-                  {boards.map((board) => (
-                    <div
-                      key={board._id}
-                      className={`relative group flex items-center rounded-full text-sm font-semibold transition-all shadow px-3 py-1.5 pr-2 bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-900 glass-btn`}
-                      style={{ minWidth: 80, maxWidth: 220, cursor: 'pointer' }}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => handleSelectBoard(board)}
-                    >
-                      {editingBoardId === board._id ? (
-                        <input
-                          type="text"
-                          value={editBoardName}
-                          onChange={(e) => setEditBoardName(e.target.value)}
-                          onBlur={() => saveBoardName(board)}
-                          onKeyDown={(e) => handleEditInputKey(e, board)}
-                          className="px-2 py-1 rounded bg-white border border-blue-200 text-blue-900 font-semibold w-32 mr-2"
-                          autoFocus
-                          disabled={editSaving}
-                        />
-                      ) : (
-                        <span className="truncate max-w-[110px]">
-                          {board.name}
-                        </span>
-                      )}
-                      {isOwner && selectedBoard?._id === board._id && (
-                        <div className="flex items-center gap-1 ml-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startEditingBoard(board);
-                            }}
-                            className="p-1 text-blue-500 hover:text-blue-700 transition-colors"
-                            title="Edit board name"
-                          >
-                            <FaEdit size={13} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteBoard(board._id);
-                            }}
-                            className="p-1 text-red-500 hover:text-red-700 transition-colors"
-                            title="Delete board"
-                          >
-                            <FaTrash size={13} />
-                          </button>
+                {isOwner && (
+                  <>
+                    <span className="text-blue-700 font-semibold">Boards:</span>
+                    <div className="flex flex-wrap gap-2">
+                      {boards.map((board) => (
+                        <div
+                          key={board._id}
+                          className={`relative group flex items-center rounded-full text-sm font-semibold transition-all shadow px-3 py-1.5 pr-2 bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-900 glass-btn`}
+                          style={{ minWidth: 80, maxWidth: 220, cursor: 'pointer' }}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => handleSelectBoard(board)}
+                        >
+                          {editingBoardId === board._id ? (
+                            <input
+                              type="text"
+                              value={editBoardName}
+                              onChange={(e) => setEditBoardName(e.target.value)}
+                              onBlur={() => saveBoardName(board)}
+                              onKeyDown={(e) => handleEditInputKey(e, board)}
+                              className="px-2 py-1 rounded bg-white border border-blue-200 text-blue-900 font-semibold w-32 mr-2"
+                              autoFocus
+                              disabled={editSaving}
+                            />
+                          ) : (
+                            <span className="truncate max-w-[110px]">
+                              {board.name}
+                            </span>
+                          )}
+                          {isOwner && selectedBoard?._id === board._id && (
+                            <div className="flex items-center gap-1 ml-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startEditingBoard(board);
+                                }}
+                                className="p-1 text-blue-500 hover:text-blue-700 transition-colors"
+                                title="Edit board name"
+                              >
+                                <FaEdit size={13} />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteBoard(board._id);
+                                }}
+                                className="p-1 text-red-500 hover:text-red-700 transition-colors"
+                                title="Delete board"
+                              >
+                                <FaTrash size={13} />
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      ))}
                     </div>
-                  ))}
-                </div>
-                {/* Create new board */}
-                <div className="ml-auto flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="New board name"
-                    className="px-4 py-1.5 rounded-full bg-blue-50 text-blue-700 placeholder-blue-400 border border-blue-200 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200 shadow glass-btn"
-                    value={newBoardName}
-                    onChange={(e) => setNewBoardName(e.target.value)}
-                    style={{ minWidth: 140 }}
-                  />
-                  <button
-                    onClick={
-                      boardLimitReached
-                        ? () =>
-                            openUpgradeModal(
-                              'Create Board',
-                              isBasic ? 'Pro' : 'Pro+'
-                            )
-                        : handleCreateBoard
-                    }
-                    className={`px-4 py-1.5 rounded-full glass-btn font-semibold shadow text-sm transition-colors ${
-                      boardLimitReached
-                        ? 'bg-blue-50 text-blue-300 cursor-not-allowed'
-                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                    }`}
-                    style={{ minWidth: 80 }}
-                    disabled={boardLimitReached}
-                    title={
-                      isBasic
-                        ? boardLimitReached
-                          ? 'Basic users can only create 2 boards.'
-                          : ''
-                        : isPro
-                        ? boardLimitReached
-                          ? 'Pro users can only create 5 boards.'
-                          : ''
-                        : ''
-                    }
-                  >
-                    + Create
-                  </button>
-                </div>
+                    {/* Create new board */}
+                    <div className="ml-auto flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="New board name"
+                        className="px-4 py-1.5 rounded-full bg-blue-50 text-blue-700 placeholder-blue-400 border border-blue-200 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200 shadow glass-btn"
+                        value={newBoardName}
+                        onChange={(e) => setNewBoardName(e.target.value)}
+                        style={{ minWidth: 140 }}
+                      />
+                      <button
+                        onClick={
+                          boardLimitReached
+                            ? () =>
+                                openUpgradeModal(
+                                  'Create Board',
+                                  isBasic ? 'Pro' : 'Pro+'
+                                )
+                            : handleCreateBoard
+                        }
+                        className={`px-4 py-1.5 rounded-full glass-btn font-semibold shadow text-sm transition-colors ${
+                          boardLimitReached
+                            ? 'bg-blue-50 text-blue-300 cursor-not-allowed'
+                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                        }`}
+                        style={{ minWidth: 80 }}
+                        disabled={boardLimitReached}
+                        title={
+                          isBasic
+                            ? boardLimitReached
+                              ? 'Basic users can only create 2 boards.'
+                              : ''
+                            : isPro
+                            ? boardLimitReached
+                              ? 'Pro users can only create 5 boards.'
+                              : ''
+                            : ''
+                        }
+                      >
+                        + Create
+                      </button>
+                    </div>
+                  </>
+                )}
                 {/* Save, Download, Reset */}
                 <div className="flex items-center gap-2 ml-4">
                   <button
                     onClick={saveBoardContent}
-                    disabled={saving || !selectedBoard}
+                    disabled={saving || !selectedBoard || !canEdit}
                     className="flex items-center gap-1 px-4 py-1.5 rounded-full glass-btn bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold shadow text-sm transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                     style={{ minWidth: 80 }}
                     title="Save Board"
