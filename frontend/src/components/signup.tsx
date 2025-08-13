@@ -23,8 +23,14 @@ export default function Signup() {
       if (res.status === 201) {
         localStorage.setItem('token', res.data.token);
         localStorage.setItem('defaultBoardId', res.data.defaultBoardId);
-        // api instance handles token automatically
-        navigate(`/board/${res.data.defaultBoardId}`);
+        // After signup, honor any stored redirect (e.g., share join)
+        const redirect = localStorage.getItem('auth-redirect');
+        if (redirect) {
+          localStorage.removeItem('auth-redirect');
+          navigate(redirect);
+        } else {
+          navigate(`/board/${res.data.defaultBoardId}`);
+        }
       }
     } catch (error: unknown) {
       console.error('Registration error:', error);
